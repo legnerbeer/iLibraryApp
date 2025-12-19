@@ -1,6 +1,9 @@
 from pathlib import Path
 import json
 import os
+import pydoc
+
+import pyodbc
 from dotenv import load_dotenv, set_key
 from cryptography.fernet import Fernet
 
@@ -85,4 +88,17 @@ def get_or_generate_key(env_file_path: Path) -> str:
         return new_key_string
     else:
         return key
+
+def try_to_build_connection(db_driver:str, db_host:str, db_user:str, db_password:str) -> bool:
+    try:
+        conn_str = (
+            f"DRIVER={db_driver};"
+            f"SYSTEM={db_host};"
+            f"UID={db_user};"
+            f"PWD={db_password};"
+        )
+        pyodbc.connect(conn_str, autocommit=True)
+        return True
+    except pyodbc.Error as ex:
+        return False
 

@@ -5,7 +5,6 @@ from pathlib import Path
 import flet as ft
 from dotenv import load_dotenv, set_key
 from cryptography.fernet import Fernet
-
 from content.functions import load_decrypted_credentials, get_or_generate_key
 from iLibrary import Library
 
@@ -30,7 +29,6 @@ class AllLibraries(ft.Column):
 
         self.list_container = ft.Column()
         self.input_card = self.list_container
-        self.page.appbar = ft.AppBar(title=ft.Text("All Libraries"))
         self.progress_bar = ft.ProgressRing()
         self.progress_bar_container = ft.Container(self.progress_bar, alignment=ft.alignment.center)
         self.controls.append(self.progress_bar_container)
@@ -41,10 +39,44 @@ class AllLibraries(ft.Column):
         self.progress_bar.visible = True
         self.progress_bar_container.visible = True
         self.page.update()
-        self.lib.conn.close()
     # --------------------------------------------------------
 
     async def async_init(self):
+        await self._create_app_bar()
+        #SEARCHBAR
+        library_list = await self.page.client_storage.get_async('library_names')
+
+        def open_searchbar(e):
+            self.searchbar.open_view()
+
+
+        def handle_change(e):
+            list_to_show = [library for library in library_list if e.data.upper() in library]
+            lv.controls.clear()
+            for i in list_to_show:
+                lv.controls.append(
+                    ft.ListTile(
+                        title=ft.Text(f"{i}"),
+                        on_click=lambda e, name=i: self.page.run_task(
+                            self._show_single_library_info, name
+                            ),
+                        data=i))
+            self.searchbar.update()
+
+        lv = ft.ListView()
+        self.searchbar = ft.SearchBar(
+            view_elevation=4,
+            divider_color=ft.Colors.PRIMARY,
+            bar_hint_text="Search for Library...",
+            view_hint_text="Suggestions...",
+            on_change=handle_change,
+            on_tap=open_searchbar,
+            controls=[
+                lv
+            ],
+        )
+
+
 
         if not await self.page.client_storage.contains_key_async('download_path'):
             self.DOWNLOAD_PATH = Path.home() / "Downloads"
@@ -70,6 +102,7 @@ class AllLibraries(ft.Column):
                 self.input_card.visible = True
                 self.list_container.visible = True
 
+                self.controls.append(self.searchbar)
                 if self.input_card not in self.controls:
                     self.controls.extend([self.input_card])
                 await self._rebuild_libraries()
@@ -81,77 +114,90 @@ class AllLibraries(ft.Column):
         self.update()
 
     # --------------------------------------------------------
-
-
+    async def _create_app_bar(self):
+        self.page.appbar = ft.AppBar(
+            title=ft.Text("All Libraries"),
+            leading=ft.IconButton(ft.Icons.SETTINGS,icon_color=ft.Colors.TRANSPARENT)
+        )
+        self.page.update()
 
     async def _rebuild_libraries(self):
-        try:
-            with Library(self.DB_USER, self.DB_PASSWORD, self.DB_SYSTEM, self.DB_DRIVER) as self.lib:
-                result = self.lib.getAllLibraries()
 
-                if isinstance(result, str):
-                    await self.page.client_storage.set_async('all_libraries', result)
-                    data = json.loads(result)
+        result = await self.page.client_storage.get_async('all_libraries')
+        if isinstance(result, str):
 
-                    for item in data:\
+            data = json.loads(result)
 
-                        new_library_image:str = item["OBJNAME"]
+            for item in data:
+
+                new_library_image:str = item["OBJNAME"]
 
 
-                        new_library_tile = ft.Container(ft.ListTile(
-                                        leading=ft.CircleAvatar(
+                new_library_tile = ft.Container(ft.ListTile(
+                                leading=ft.CircleAvatar(
 
-                                                content=ft.Text(new_library_image[0:2], bgcolor="#00ffe5", color="black"),
-                                                bgcolor="#00ffe5"
-                                            ),
-                                        title=ft.Text(item["OBJNAME"]),
-                                        trailing=ft.PopupMenuButton(
-                                            icon=ft.Icons.MORE_VERT,
-                                            items=[
-                                                ft.PopupMenuItem(
-                                                    text="Show Details",
-                                                    on_click=lambda e, name=item["OBJNAME"]: self.page.run_task(self._show_single_library_info, name)
-                                                ),
-                                                ft.PopupMenuItem(
-                                                    text="Get SaveFile",
-                                                    on_click=lambda e, name=item["OBJNAME"]: self.page.run_task(
-                                                        self._get_single_savefile, name)
-                                                ),
-                                            ],
-                                        ),
-                                        on_click=lambda e, name=item["OBJNAME"]: self.page.run_task(self._show_single_library_info, name),
-                                        is_three_line=True,
-                                        subtitle=ft.Text(f"Description: {item["TEXT"]} \nCreated: {item['OBJCREATED']}"),
-                                        bgcolor=ft.Colors.INVERSE_PRIMARY,
+                                        content=ft.Text(new_library_image[0:2], bgcolor="#00ffe5", color="black"),
+                                        bgcolor="#00ffe5"
                                     ),
-                            border_radius=8,
-                        )
-                        self.list_container.controls.append(new_library_tile)
+                                title=ft.Text(item["OBJNAME"]),
+                                trailing=ft.PopupMenuButton(
+                                    icon=ft.Icons.MORE_VERT,
+                                    items=[
+                                        ft.PopupMenuItem(
+                                            text="Show Details",
+                                            on_click=lambda e, name=item["OBJNAME"]: self.page.run_task(self._show_single_library_info, name, self.content_manager)
+                                        ),
+                                        ft.PopupMenuItem(
+                                            text="Get SaveFile",
+                                            on_click=lambda e, name=item["OBJNAME"]: self.page.run_task(
+                                                self._get_single_savefile, name)
+                                        ),
+                                    ],
+                                ),
+                                on_click=lambda e, name=item["OBJNAME"]: self.page.run_task(self._show_single_library_info, name),
+                                is_three_line=True,
+                                subtitle=ft.Text(f"Description: {item["TEXT"]} \nCreated: {item['OBJCREATED']}"),
+                                bgcolor=ft.Colors.INVERSE_PRIMARY,
+                            ),
+                    border_radius=8,
+                )
+                self.list_container.controls.append(new_library_tile)
 
-                    self.input_card.visible = True
-                    self.list_container.visible = True
+            self.input_card.visible = True
+            self.list_container.visible = True
 
 
-        except Exception as e:
-            self.input_card.controls.clear()
-            self.input_card.controls.append(
-                ft.Text(f"Connection Error: {e}")
-        )
         self.progress_bar.visible = False
         self.progress_bar_container.visible = False
+
         self.update()
 
     # --------------------------------------------------------
     async def _show_single_library_info(self, name):
         from content.single_library_info import Info
-        await self.content_manager(Info(self.page, name))
+        await self.content_manager(Info(self.page, name, self.content_manager))
 
     # --------------------------------------------------------
     async def _show_setup_modal(self):
-        driver = ft.TextField(label="ODBC Driver", value="{IBM i Access ODBC Driver}")
-        system = ft.TextField(label="IBMi Hostname")
-        user = ft.TextField(label="Username")
-        password = ft.TextField(label="Password", password=True, can_reveal_password=True)
+        driver = ft.TextField(
+            label="ODBC Driver",
+            value="{IBM i Access ODBC Driver}",
+            border_color=ft.Colors.PRIMARY,
+            )
+        system = ft.TextField(
+            label="IBMi Hostname",
+            border_color=ft.Colors.PRIMARY,
+        )
+        user = ft.TextField(
+            label="Username",
+            border_color=ft.Colors.PRIMARY,
+        )
+        password = ft.TextField(
+            label="Password",
+            password=True,
+            can_reveal_password=True,
+            border_color=ft.Colors.PRIMARY,
+        )
 
         self.add_server_modal = ft.AlertDialog(
             modal=True,

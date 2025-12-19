@@ -1,7 +1,51 @@
-from sqlalchemy import create_engine
+import flet as ft
 
-# Format: ibmi://<user>:<password>@<host>/<rdbname>[?key=value]
-try:
-    engine = create_engine("ibmi://albeer:rv0751@pub400.com/ALBEER1")
-except Exception as e:
-    print(e)
+
+def main(page: ft.Page):
+
+    rail = ft.NavigationRail(
+        selected_index=0,
+        label_type=ft.NavigationRailLabelType.ALL,
+        min_width=100,
+        min_extended_width=400,
+        leading=ft.FloatingActionButton(
+            icon=ft.Icons.CREATE, text="Add", on_click=lambda e: print("FAB clicked!")
+        ),
+        group_alignment=-0.9,
+        destinations=[
+            ft.NavigationRailDestination(
+                icon=ft.Icons.FAVORITE_BORDER,
+                selected_icon=ft.Icons.FAVORITE,
+                label="First",
+            ),
+            ft.NavigationRailDestination(
+                icon=ft.Icon(ft.Icons.BOOKMARK_BORDER),
+                selected_icon=ft.Icon(ft.Icons.BOOKMARK),
+                label="Second",
+            ),
+            ft.NavigationRailDestination(
+                icon=ft.Icons.SETTINGS_OUTLINED,
+                selected_icon=ft.Icon(ft.Icons.SETTINGS),
+                label_content=ft.Text("Settings"),
+            ),
+        ],
+        on_change=lambda e: print("Selected destination:", e.control.selected_index),
+    )
+
+    page.add(
+        ft.Row(
+            [
+                rail,
+                ft.VerticalDivider(width=1),
+                ft.Column(
+                    [ft.Text("Body!")],
+                    alignment=ft.MainAxisAlignment.START,
+                    expand=True,
+                ),
+            ],
+            expand=True,
+        )
+    )
+
+
+ft.app(main)
