@@ -61,14 +61,18 @@ class Settings(ft.Column):
                 border_radius=8,
             )
         )
+        await self._create_app_bar()
         self.controls.append(self.list_container)
         self.page.update()
 
-
     async def _create_app_bar(self):
         self.page.appbar = ft.AppBar(
-            title=ft.Text("All Libraries"),
-            leading=ft.IconButton(ft.Icons.SETTINGS,icon_color=ft.Colors.TRANSPARENT)
+            title=ft.Text("Settings"),
+            # actions=[
+            #     # Reference the instance variable here
+            #     ft.Container(content=ft.Text(value=None, badge=self.badge_server_status)),
+            #     ft.Container(width=60)
+            # ]
         )
         self.page.update()
 

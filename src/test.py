@@ -1,50 +1,38 @@
+from pathlib import Path
+
 import flet as ft
 
 
 def main(page: ft.Page):
+    page.title = "AlertDialog examples"
 
-    rail = ft.NavigationRail(
-        selected_index=0,
-        label_type=ft.NavigationRailLabelType.ALL,
-        min_width=100,
-        min_extended_width=400,
-        leading=ft.FloatingActionButton(
-            icon=ft.Icons.CREATE, text="Add", on_click=lambda e: print("FAB clicked!")
+    dlg = ft.AlertDialog(
+        title=ft.Text("Hello"),
+        content=ft.Text("You are notified!"),
+        alignment=ft.alignment.center,
+        on_dismiss=lambda e: print("Dialog dismissed!"),
+        title_padding=ft.padding.all(25),
+    )
+
+    download_path = Path.home() / "Downloads"
+    dlg_modal = ft.AlertDialog(
+        modal=True,
+        title=ft.Text("Please confirm"),
+        content=ft.TextField(
+            label="Enter your name",
+            value=str(download_path)
         ),
-        group_alignment=-0.9,
-        destinations=[
-            ft.NavigationRailDestination(
-                icon=ft.Icons.FAVORITE_BORDER,
-                selected_icon=ft.Icons.FAVORITE,
-                label="First",
-            ),
-            ft.NavigationRailDestination(
-                icon=ft.Icon(ft.Icons.BOOKMARK_BORDER),
-                selected_icon=ft.Icon(ft.Icons.BOOKMARK),
-                label="Second",
-            ),
-            ft.NavigationRailDestination(
-                icon=ft.Icons.SETTINGS_OUTLINED,
-                selected_icon=ft.Icon(ft.Icons.SETTINGS),
-                label_content=ft.Text("Settings"),
-            ),
+        actions=[
+            ft.TextButton("Yes", on_click=lambda e: page.close(dlg_modal)),
+            ft.TextButton("No", on_click=lambda e: page.close(dlg_modal)),
         ],
-        on_change=lambda e: print("Selected destination:", e.control.selected_index),
+        actions_alignment=ft.MainAxisAlignment.END,
+        on_dismiss=lambda e: print("Modal dialog dismissed!"),
     )
 
     page.add(
-        ft.Row(
-            [
-                rail,
-                ft.VerticalDivider(width=1),
-                ft.Column(
-                    [ft.Text("Body!")],
-                    alignment=ft.MainAxisAlignment.START,
-                    expand=True,
-                ),
-            ],
-            expand=True,
-        )
+        ft.ElevatedButton("Open dialog", on_click=lambda e: page.open(dlg)),
+        ft.ElevatedButton("Open modal dialog", on_click=lambda e: page.open(dlg_modal)),
     )
 
 

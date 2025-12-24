@@ -1,12 +1,15 @@
 import os
 import json
 from pathlib import Path
-
+import asyncio
 import flet as ft
+import content.config as config
 from dotenv import load_dotenv, set_key
 from cryptography.fernet import Fernet
 from content.functions import load_decrypted_credentials, get_or_generate_key
 from iLibrary import Library
+from pycparser.c_ast import While
+
 
 class AllLibraries(ft.Column):
     def __init__(self, page: ft.Page, content_manager):
@@ -18,6 +21,7 @@ class AllLibraries(ft.Column):
         self.page = page
         self.content_manager = content_manager
         self.env_file_path = Path(__file__).parent / ".env"
+        self.badge_server_status = ft.Badge()
 
         self.ENCRYPTION_KEY_STR = None
         self.db_credentials = None
@@ -42,6 +46,7 @@ class AllLibraries(ft.Column):
     # --------------------------------------------------------
 
     async def async_init(self):
+        #self.page.run_task(self._load_server_status)
         await self._create_app_bar()
         #SEARCHBAR
         library_list = await self.page.client_storage.get_async('library_names')
@@ -72,6 +77,9 @@ class AllLibraries(ft.Column):
             on_change=handle_change,
             on_tap=open_searchbar,
             controls=[
+
+
+
                 lv
             ],
         )
@@ -113,11 +121,31 @@ class AllLibraries(ft.Column):
 
         self.update()
 
-    # --------------------------------------------------------
+    async def _load_server_status(self):
+        # Initialize the badge once
+        self.badge_server_status = ft.Badge()
+
+        while True:
+            if not config.SERVER_STATUS:
+                self.badge_server_status.text = 'Offline'
+                self.badge_server_status.bgcolor = ft.Colors.ERROR
+            else:
+                self.badge_server_status.text = 'Online'
+                self.badge_server_status.bgcolor = ft.Colors.GREEN_ACCENT_400
+
+            # In Flet, you must update the page to see changes
+            self.update()
+            self.page.update()
+            await asyncio.sleep(10.0)
+
     async def _create_app_bar(self):
         self.page.appbar = ft.AppBar(
             title=ft.Text("All Libraries"),
-            leading=ft.IconButton(ft.Icons.SETTINGS,icon_color=ft.Colors.TRANSPARENT)
+            # actions=[
+            #     # Reference the instance variable here
+            #     ft.Container(content=ft.Text(value=None, badge=self.badge_server_status)),
+            #     ft.Container(width=60)
+            # ]
         )
         self.page.update()
 

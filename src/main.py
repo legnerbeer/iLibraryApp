@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 from iLibrary import Library
 import flet as ft
 import json
+import content.config as config
 from content.functions import load_decrypted_credentials, get_or_generate_key
 # Assuming content.all_libraries is available
 from content.all_libraries import AllLibraries
@@ -14,7 +15,6 @@ async def run_sync(page):
     env_file_path = Path(__file__).parent /"content"/ ".env"
     ENCRYPTION_KEY_STR = get_or_generate_key(env_file_path)
     load_dotenv(env_file_path, override=True)
-
     while True:
         if os.getenv("ENCRYPTED_DB_CREDENTIALS"):
             db_credentials = load_decrypted_credentials(
@@ -39,7 +39,9 @@ async def run_sync(page):
                             lib_names.append(item["OBJNAME"])
                         await page.client_storage.set_async('library_names', lib_names)
                         lib.conn.close()
+                        config.SERVER_STATUS = True
                 except Exception as e:
+                    config.SERVER_STATUS = False
                     print(e)
 
         await asyncio.sleep(60.0)
@@ -89,19 +91,20 @@ async def main(page: ft.Page):
             await clear_and_add_control(AllLibraries(
                 page,
                 content_manager=clear_and_add_control))
-            page.title = "All Libraries"  # Update page title
+            page.title = "Libraries"  # Update page title
 
-        elif idx == 1:  # CATEGORIES
+        elif idx == 1:  # Users
             await clear_and_add_control(
                 ft.Container(
-                    content=ft.Text("This Content (CATEGORIES) is in Development"),
+                    content=ft.Text("This Content (Users) is in Development"),
                     alignment=ft.alignment.center
                 )
             )
-            page.title = "Categories"  # Update page title
+            page.title = "Users"  # Update page title
             # page.open(ft.SnackBar(ft.Text("This Content is in Development"), show_close_icon=True))
 
         elif idx == 2:  # SETTINGS
+            page.title = "Settings"
             await clear_and_add_control(Settings(
                 page,
                 content_manager=clear_and_add_control))
@@ -131,9 +134,9 @@ async def main(page: ft.Page):
                 label="All Libraries",
             ),
             ft.NavigationRailDestination(
-                icon=ft.Icon(ft.Icons.BOOKMARK_BORDER),
-                selected_icon=ft.Icon(ft.Icons.BOOKMARK),
-                label="Categories",
+                icon=ft.Icon(ft.Icons.ACCOUNT_CIRCLE_OUTLINED),
+                selected_icon=ft.Icon(ft.Icons.ACCOUNT_CIRCLE),
+                label="Users",
             ),
             ft.NavigationRailDestination(
                 icon=ft.Icons.SETTINGS_OUTLINED,
