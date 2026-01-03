@@ -17,7 +17,7 @@ class AllLibraries(ft.Column):
             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
 
         )
-        self.page = page
+        self.current_page = page
         self.content_manager = content_manager
         self.env_file_path = Path(__file__).parent / ".env"
         self.badge_server_status = ft.Badge()
@@ -32,117 +32,124 @@ class AllLibraries(ft.Column):
         self.list_container = ft.Column()
         self.input_card = self.list_container
         self.progress_bar = ft.ProgressRing()
-        self.progress_bar_container = ft.Container(self.progress_bar, alignment=ft.alignment.center)
+        self.progress_bar_container = ft.Container(self.progress_bar, alignment=ft.Alignment.CENTER)
         self.controls.append(self.progress_bar_container)
 
         # Start initialization
-        self.page.run_task(self.async_init)
+
+        self.current_page.run_task(self.async_init)
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.progress_bar.visible = True
         self.progress_bar_container.visible = True
-        self.page.update()
+        self.current_page.update()
 
     # --------------------------------------------------------
 
+    def open_searchbar(self, e):
+        self.current_page.run_task( self.searchbar.open_view)
+
+    async def load_library_names(self):
+        # # 1. Get the data from SharedPreferences
+        # raw_data = await ft.SharedPreferences().get(key='library_names')
+        raw_data = await ft.SharedPreferences().get(key='library_names')
+
+        try:
+            if isinstance(raw_data, list):
+                # If it's a list of one string that looks like a list: ["['A', 'B']"]
+                if len(raw_data) == 1 and isinstance(raw_data[0], str) and raw_data[0].startswith("["):
+                    # Clean the string and parse it properly
+                    # We replace single quotes with double quotes for valid JSON
+                    valid_json_string = raw_data[0].replace("'", '"')
+                    self.library_list = json.loads(valid_json_string)
+                else:
+                    self.library_list = raw_data
+            elif isinstance(raw_data, str):
+                # If it's just the string: "['A', 'B']"
+                valid_json_string = raw_data.replace("'", '"')
+                self.library_list = json.loads(valid_json_string)
+            else:
+                self.library_list = []
+        except Exception as e:
+            print(f"Error parsing user_names: {e}")
+            self.library_list = []
+
+        # Clean up any extra whitespace or quotes left over
+        self.library_list = [str(u).strip() for u in self.library_list]
+
+    def handle_change(self, e):
+        # 3. Get the search query
+        query = e.data.upper().strip()
+
+        # 4. Filter: Ensure 'library' is treated as a string
+        # We check if 'query' is inside the 'library' name
+        list_to_show = [
+            lib for lib in self.library_list
+            if query in str(lib).upper()
+        ]
+
+        # 5. Clear and Repopulate
+        self.lv.controls.clear()
+
+        for library_name in list_to_show:
+            self.lv.controls.append(
+                ft.ListTile(
+                    title=ft.Text(library_name),  # Force to string
+                    on_click=lambda _, name=str(library_name).replace("'", ""): self.current_page.run_task(
+                        self._show_single_library_info, name
+                    )
+                )
+            )
+
+        # update the UI
+
     async def async_init(self):
-        #self.page.run_task(self._load_server_status)
         await self._create_app_bar()
-        #SEARCHBAR
-        library_list = await self.page.client_storage.get_async('library_names')
+        # Load library names before using them
+        await self.load_library_names()
 
-        def open_searchbar(e):
-            self.searchbar.open_view()
-
-        def handle_change(e):
-            list_to_show = [library for library in library_list if e.data.upper() in library]
-            lv.controls.clear()
-            for i in list_to_show:
-                lv.controls.append(
-                    ft.ListTile(
-                        title=ft.Text(f"{i}"),
-                        on_click=lambda e, name=i: self.page.run_task(
-                            self._show_single_library_info, name
-                        ),
-                        data=i))
-            self.searchbar.update()
-
-        self.error_banner = ft.Banner(
-            bgcolor=ft.Colors.ERROR_CONTAINER,
-            open=True,
-            leading=ft.Icon(ft.Icons.ERROR_OUTLINE, color=ft.Colors.ERROR, size=40),
-            content=ft.Text(
-                value="Oops, no Connection to the Database. Please setup the Database Credentials in the Settings",
-                color=ft.Colors.ON_ERROR_CONTAINER,
-            ),
-            actions=[
-                ft.TextButton(
-                    text="Go to Settings",
-                    style=ft.ButtonStyle(color=ft.Colors.ON_ERROR_CONTAINER),
-                    on_click=lambda e: self.page.run_task(self._go_to_settings),
-                ),
-            ],
-        )
-
-
-        lv = ft.ListView()
+        # Create ListView and SearchBar
+        self.lv = ft.ListView()
         self.searchbar = ft.SearchBar(
             view_elevation=4,
             divider_color=ft.Colors.PRIMARY,
             bar_hint_text="Search for Library...",
             view_hint_text="Suggestions...",
-            on_change=handle_change,
-            on_tap=open_searchbar,
-            controls=[
-                lv
-            ],
+            on_change=self.handle_change,  # use method, not function
+            on_tap=self.open_searchbar,  # open searchbar when tapped
+            controls=[self.lv],  # ListView inside the SearchBar
         )
 
-        if not await self.page.client_storage.contains_key_async('download_path'):
+        # Download path and SharedPreferences logic
+        if not await ft.SharedPreferences().contains_key('download_path'):
             self.DOWNLOAD_PATH = Path.home() / "Downloads"
-            await self.page.client_storage.set_async('download_path', str(self.DOWNLOAD_PATH))
+            await ft.SharedPreferences().set('download_path', str(self.DOWNLOAD_PATH))
         else:
-            self.DOWNLOAD_PATH = Path(await self.page.client_storage.get_async('download_path'))
+            self.DOWNLOAD_PATH = Path(await ft.SharedPreferences().get('download_path'))
 
         self.ENCRYPTION_KEY_STR = get_or_generate_key(self.env_file_path)
 
-        if await self.page.client_storage.contains_key_async('all_libraries'):
-            self.error_banner.open = False
+        if await ft.SharedPreferences().contains_key('all_libraries'):
             self.input_card.visible = True
             self.list_container.visible = True
 
             self.controls.append(self.searchbar)
             if self.input_card not in self.controls:
                 self.controls.extend([self.input_card])
+
             await self._rebuild_libraries()
+        else:
+            # Uncomment if you want to show an error banner when no libraries are found
+            # self.current_page.open(self.error_banner)
+            pass
 
-
-            # else:
-            #     self.page.open(self.error_banner)
-            self.update()
-
-    async def _load_server_status(self):
-        # Initialize the badge once
-        self.badge_server_status = ft.Badge()
-
-        while True:
-            if not config.SERVER_STATUS:
-                self.badge_server_status.text = 'Offline'
-                self.badge_server_status.bgcolor = ft.Colors.ERROR
-            else:
-                self.badge_server_status.text = 'Online'
-                self.badge_server_status.bgcolor = ft.Colors.GREEN_ACCENT_400
-
-            # In Flet, you must update the page to see changes
-            self.update()
-            self.page.update()
-            await asyncio.sleep(10.0)
+        self.update()
 
     async def _create_app_bar(self):
         """
             Creating the App Bar
         """
-        self.page.appbar = ft.AppBar(
+        self.current_page.appbar = ft.AppBar(
             title=ft.Text("All Libraries"),
             # actions=[
             #     # Reference the instance variable here
@@ -150,13 +157,13 @@ class AllLibraries(ft.Column):
             #     ft.Container(width=60)
             # ]
         )
-        self.page.update()
+        self.current_page.update()
 
     async def _rebuild_libraries(self):
         """
         rebuild the list of libraries
         """
-        result = await self.page.client_storage.get_async('all_libraries')
+        result = await ft.SharedPreferences().get('all_libraries')
         if isinstance(result, str):
 
             data = json.loads(result)
@@ -175,18 +182,18 @@ class AllLibraries(ft.Column):
                         icon=ft.Icons.MORE_VERT,
                         items=[
                             ft.PopupMenuItem(
-                                text="Show Details",
-                                on_click=lambda e, name=item["OBJNAME"]: self.page.run_task(
+                                "Show Details",
+                                on_click=lambda e, name=item["OBJNAME"]: self.current_page.run_task(
                                     self._show_single_library_info, name)
                             ),
                             ft.PopupMenuItem(
-                                text="Get SaveFile",
-                                on_click=lambda e, name=item["OBJNAME"]: self.page.run_task(
+                                "Get SaveFile",
+                                on_click=lambda e, name=item["OBJNAME"]: self.current_page.run_task(
                                     self._get_single_savefile, name)
                             ),
                         ],
                     ),
-                    on_click=lambda e, name=item["OBJNAME"]: self.page.run_task(self._show_single_library_info, name),
+                    on_click=lambda e, name=item["OBJNAME"]: self.current_page.run_task(self._show_single_library_info, name),
                     is_three_line=True,
                     subtitle=ft.Text(f"Description: {item["TEXT"]} \nCreated: {item['OBJCREATED']}"),
                     bgcolor=ft.Colors.INVERSE_PRIMARY,
@@ -210,55 +217,9 @@ class AllLibraries(ft.Column):
         :param name:
         """
         from content.single_library_info import Info
-        await self.content_manager(Info(self.page, name, self.content_manager))
+        await self.content_manager(Info(self.current_page, name, self.content_manager))
 
-    # --------------------------------------------------------
-    async def _show_setup_modal(self):
-        """
-        showing up the modal for the database credentials
-        :return:
-        """
 
-        driver = ft.TextField(
-            label="ODBC Driver",
-            value="{IBM i Access ODBC Driver}",
-            border_color=ft.Colors.PRIMARY,
-        )
-        system = ft.TextField(
-            label="IBMi Hostname",
-            border_color=ft.Colors.PRIMARY,
-        )
-        user = ft.TextField(
-            label="Username",
-            border_color=ft.Colors.PRIMARY,
-        )
-        password = ft.TextField(
-            label="Password",
-            password=True,
-            can_reveal_password=True,
-            border_color=ft.Colors.PRIMARY,
-        )
-
-        self.add_server_modal = ft.AlertDialog(
-            modal=True,
-            title=ft.Text("Database credentials"),
-            content=ft.Column([driver, system, user, password]),
-            actions=[
-                ft.TextButton("Cancel", on_click=lambda e: self.page.close(self.add_server_modal)),
-                ft.TextButton(
-                    "Save",
-                    style=ft.ButtonStyle(color=ft.Colors.ON_PRIMARY, bgcolor=ft.Colors.PRIMARY),
-                    on_click=lambda e: (
-                        self.page.close(self.add_server_modal),
-                        self.page.run_task(
-                            self._save_credentials_and_reload, driver, system, user, password
-                        ),
-                    ),
-                ),
-            ],
-        )
-
-        self.page.open(self.add_server_modal)
 
     # --------------------------------------------------------
 
@@ -291,7 +252,7 @@ class AllLibraries(ft.Column):
         def download_save_file(library_name: str, savefile_name: str, description: str, version: str, authority: str,
                                download_path: str):
             try:
-                self.page.close(self.download_modal)
+                self.current_page.pop_dialog()
 
                 with Library(self.DB_USER, self.DB_PASSWORD, self.DB_SYSTEM, self.DB_DRIVER) as lib:
                     try:
@@ -306,14 +267,14 @@ class AllLibraries(ft.Column):
                             remSavf=True,
                             getZip=True
                         )
-                        self.page.run_task(self.page.client_storage.set_async, 'download_path', download_path)
+                        self.current_page.run_task(ft.SharedPreferences().set_async, 'download_path', download_path)
                     except Exception as e:
-                        self.page.open(ft.SnackBar(
+                        self.current_page.show_dialog(ft.SnackBar(
                             content=ft.Text(f"Failed: {e}", color=ft.Colors.WHITE),
                             bgcolor=ft.Colors.RED_ACCENT_400))
                         return
 
-                    self.page.open(ft.SnackBar(
+                    self.current_page.show_dialog(ft.SnackBar(
                         content=ft.Text(f"Success, saved to: {download_path}", color=ft.Colors.WHITE),
                         bgcolor=ft.Colors.GREEN_ACCENT_400))
 
@@ -321,7 +282,7 @@ class AllLibraries(ft.Column):
                 if hasattr(self, "input_card"):
                     self.input_card.controls.clear()
                     self.input_card.controls.append(ft.Text(f"Connection Error: {e}"))
-                    self.page.update()
+                    self.current_page.update()
 
         # Ref fields for the download modal
         save_file_description_text_field_ref = ft.Ref[ft.TextField]()
@@ -355,7 +316,8 @@ class AllLibraries(ft.Column):
                     label="Version",
                     value="*CURRENT",
                     border_color=ft.Colors.PRIMARY,
-                    helper_text="V7R1M0, V7R2M0, V7R3M0, V7R4M0, V7R5M0, V7R6M0 ..."
+
+                    helper="V7R1M0, V7R2M0, V7R3M0, V7R4M0, V7R5M0, V7R6M0 ..."
                 ),
                 ft.Container(height=5),
                 ft.TextField(
@@ -363,7 +325,7 @@ class AllLibraries(ft.Column):
                     label="Authority",
                     border_color=ft.Colors.PRIMARY,
                     value="*ALL",
-                    helper_text="*EXCLUDE, *ALL, *CHANGE, *LIBCRTAUT, *USE"
+                    helper="*EXCLUDE, *ALL, *CHANGE, *LIBCRTAUT, *USE"
                 ),
                 ft.Container(height=5),
                 ft.TextField(
@@ -376,9 +338,9 @@ class AllLibraries(ft.Column):
                 expand=False
             ),
             actions=[
-                ft.TextButton("Close", on_click=lambda e: self.page.close(self.download_modal)),
+                ft.TextButton("Close", on_click=lambda e: self.current_page.pop_dialog()),
                 ft.TextButton(
-                    text="Download",
+                    "Download",
                     style=ft.ButtonStyle(
                         bgcolor=ft.Colors.PRIMARY,
                         color=ft.Colors.ON_PRIMARY),
@@ -394,10 +356,9 @@ class AllLibraries(ft.Column):
             actions_alignment=ft.MainAxisAlignment.END,
             on_dismiss=lambda e: print("Modal dialog dismissed!"),
         )
-        self.page.open(self.download_modal)
+        self.current_page.show_dialog(self.download_modal)
 
     async def _go_to_settings(self):
-        self.error_banner.open = False
-        self.page.update()
+        self.current_page.update()
         from content.settings import Settings
-        await self.content_manager(Settings(self.page, self.content_manager))
+        await self.content_manager(Settings(self.current_page, self.content_manager))

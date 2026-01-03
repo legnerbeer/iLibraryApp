@@ -15,7 +15,7 @@ class Settings(ft.Column):
             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
 
         )
-        self.page = page
+        self.current_page = page
         self.content_manager = content_manager
         self.env_file_path = Path(__file__).parent / ".env"
 
@@ -31,9 +31,9 @@ class Settings(ft.Column):
         self.input_card = self.list_container
 
         # Start initialization
-        self.page.run_task(self.async_init)
+        self.current_page.run_task(self.async_init)
     def __exit__(self, exc_type, exc_val, exc_tb):
-        self.page.update()
+        self.current_page.update()
 
 
     async def async_init(self):
@@ -42,7 +42,7 @@ class Settings(ft.Column):
             ft.Container(ft.ListTile(
                 leading=None,
                 title=ft.Text("IBMi Server Settings"),
-                on_click=lambda e:self.page.open(self.add_server_modal),
+                on_click=lambda e:self.current_page.show_dialog(self.add_server_modal),
                 is_three_line=True,
                 #subtitle=ft.Text(f"Description: {item["TEXT"]} \nCreated: {item['OBJCREATED']}"),
                 bgcolor=ft.Colors.INVERSE_PRIMARY,
@@ -53,7 +53,7 @@ class Settings(ft.Column):
             ft.Container(ft.ListTile(
                 leading=None,
                 title=ft.Text("Switch Thema Mode"),
-                on_click=lambda e: self.page.open(self.switch_shema_modal),
+                on_click=lambda e: self.current_page.show_dialog(self.switch_shema_modal),
                 is_three_line=True,
                 bgcolor=ft.Colors.INVERSE_PRIMARY,
             ),
@@ -62,7 +62,7 @@ class Settings(ft.Column):
             ft.Container(ft.ListTile(
                 leading=None,
                 title=ft.Text("Clear iLibrary App"),
-                on_click=lambda e: self.page.open(self.clear_app_data_modal),
+                on_click=lambda e: self.current_page.show_dialog(self.clear_app_data_modal),
                 is_three_line=True,
                 bgcolor=ft.Colors.INVERSE_PRIMARY,
             ),
@@ -72,10 +72,10 @@ class Settings(ft.Column):
         )
         await self._create_app_bar()
         self.controls.append(self.list_container)
-        self.page.update()
+        self.current_page.update()
 
     async def _create_app_bar(self):
-        self.page.appbar = ft.AppBar(
+        self.current_page.appbar = ft.AppBar(
             title=ft.Text("Settings"),
             # actions=[
             #     # Reference the instance variable here
@@ -83,7 +83,7 @@ class Settings(ft.Column):
             #     ft.Container(width=60)
             # ]
         )
-        self.page.update()
+        self.current_page.update()
 
     async def _save_credentials_and_reload(self, driver, system, user, password):
         credentials = {
@@ -111,12 +111,12 @@ class Settings(ft.Column):
             title=ft.Text("Clearing iLibrary", color=ft.Colors.RED),
             content=ft.Text("Are you sure you want to clear and close the iLibrary App?"),
             actions=[
-                ft.TextButton("Cancel", on_click=lambda e: self.page.close(self.clear_app_data_modal)),
+                ft.TextButton("Cancel", on_click=lambda e: self.current_page.pop_dialog()),
                 ft.TextButton(
-                    text="Clear",
+                    "Clear",
                     style=ft.ButtonStyle(color=ft.Colors.ON_PRIMARY, bgcolor=ft.Colors.RED),
                     on_click=lambda e: (
-                        self.page.run_task(self._clear_app_data, e),
+                        self.current_page.run_task(self._clear_app_data, e),
                     )
                 )
             ]
@@ -130,7 +130,7 @@ class Settings(ft.Column):
                     ft.ListTile(
                     ft.Row(
                         [
-                            ft.Container(content=ft.Text("System"), padding=ft.padding.only(left=15)),
+                            ft.Container(content=ft.Text("System"), padding=ft.Padding.only(left=15)),
                             ft.Radio(value="system"),
                         ],
                         alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
@@ -139,7 +139,7 @@ class Settings(ft.Column):
                     ft.ListTile(
                     ft.Row(
                         [
-                            ft.Container(content=ft.Text("Light"), padding=ft.padding.only(left=15)),
+                            ft.Container(content=ft.Text("Light"), padding=ft.Padding.only(left=15)),
                             ft.Radio(value="light"),
                         ],
                         alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
@@ -148,7 +148,7 @@ class Settings(ft.Column):
                     ft.ListTile(
                     ft.Row(
                         [
-                            ft.Container(content=ft.Text("Dark"), padding=ft.padding.only(left=15)),
+                            ft.Container(content=ft.Text("Dark"), padding=ft.Padding.only(left=15)),
                             ft.Radio(value="dark"),
                         ],
                         alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
@@ -162,13 +162,13 @@ class Settings(ft.Column):
                 on_change=self._handle_theme_mode,
         ),
             actions=[
-                ft.TextButton("Cancel", on_click=lambda e: self.page.close(self.switch_shema_modal)),
+                ft.TextButton("Cancel", on_click=lambda e: self.current_page.pop_dialog()),
                 ft.TextButton(
-                    text="Save",
+                    "Save",
                     style=ft.ButtonStyle(color=ft.Colors.ON_PRIMARY, bgcolor=ft.Colors.PRIMARY),
                     on_click=lambda e: (
-                        self.page.run_task(
-                            self._handle_theme_mode
+                        self.current_page.run_task(
+                            self._handle_theme_mode, e
 
                         ),
                     ),
@@ -222,12 +222,12 @@ class Settings(ft.Column):
             title=ft.Text("Database credentials"),
             content=ft.Column([driver, system, user, password, self.error_field]),
             actions=[
-                ft.TextButton("Cancel", on_click=lambda e: self.page.close(self.add_server_modal)),
+                ft.TextButton("Cancel", on_click=lambda e: self.current_page.pop_dialog()),
                 ft.TextButton(
-                    text="Save",
+                    "Save",
                     style=ft.ButtonStyle(color=ft.Colors.ON_PRIMARY, bgcolor=ft.Colors.PRIMARY),
                     on_click=lambda e: (
-                        self.page.run_task(
+                        self.current_page.run_task(
                             self._try_connection, driver.value,  system.value, user.value, password.value
 
                         ),
@@ -245,7 +245,7 @@ class Settings(ft.Column):
             await self._save_credentials_and_reload(driver, system, user, password)
             self.error_field.visible = False
             self.error_field.update()
-            self.page.close(self.add_server_modal)
+            self.current_page.pop_dialog()
         else:
             self.error_field.value = "Server connection failed."
             self.error_field.visible = True
@@ -262,24 +262,24 @@ class Settings(ft.Column):
         selected_theme = e.control.value
 
         if selected_theme == "system":
-            await self.page.client_storage.set_async("theme_mode", selected_theme)
-            self.page.theme_mode = ft.ThemeMode.SYSTEM
+            await ft.SharedPreferences().set("theme_mode", selected_theme)
+            self.current_page.theme_mode = ft.ThemeMode.SYSTEM
         elif selected_theme == "light":
-            await self.page.client_storage.set_async("theme_mode", selected_theme)
-            self.page.theme_mode = ft.ThemeMode.LIGHT
+            await ft.SharedPreferences().set("theme_mode", selected_theme)
+            self.current_page.theme_mode = ft.ThemeMode.LIGHT
         elif selected_theme == "dark":
-            await self.page.client_storage.set_async("theme_mode", selected_theme)
-            self.page.theme_mode = ft.ThemeMode.DARK
+            await ft.SharedPreferences().set("theme_mode", selected_theme)
+            self.current_page.theme_mode = ft.ThemeMode.DARK
 
-        await self.page.client_storage.set_async("theme_mode", selected_theme)
+        await ft.SharedPreferences().set("theme_mode", selected_theme)
 
-        self.page.update()
+        self.current_page.update()
 
     async def _clear_app_data(self, e):
-        await self.page.client_storage.clear_async()
+        await ft.SharedPreferences().clear()
         self.clear_app_data_modal.open = False
         if os.path.isfile(self.env_file_path):
             os.remove(self.env_file_path)
-        self.page.update()
-        self.page.window.close()
+        await self.current_page.window.close()
+        self.current_page.update()
 

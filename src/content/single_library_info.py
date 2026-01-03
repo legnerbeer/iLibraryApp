@@ -18,7 +18,7 @@ class Info(ft.Column):
 
         )
         self.DOWNLOAD_PATH = Path.home() / "Downloads"
-        self.page = page
+        self.current_page = page
         self.content_manager = content_manager
         self.library = library
         self.env_file_path = Path(__file__).parent / ".env"
@@ -33,34 +33,34 @@ class Info(ft.Column):
         self.input_card = self.list_container
         self._create_app_bar()
         self.progress_bar = ft.ProgressRing()
-        self.progress_bar_container = ft.Container(self.progress_bar, alignment=ft.alignment.center)
+        self.progress_bar_container = ft.Container(self.progress_bar, alignment=ft.Alignment.CENTER)
         self.controls.append(self.progress_bar_container)
 
         # Start initialization
-        self.page.run_task(self.async_init)
+        self.current_page.run_task(self.async_init)
 
     def __exit__(self, exc_type, exc_val, exc_tb):
 
         self.progress_bar.visible = True
         self.progress_bar_container.visible = True
-        self.page.update()
+        self.current_page.update()
         self.lib.conn.close()
 
     def _create_app_bar(self):
-        self.page.appbar = ft.AppBar(
+        self.current_page.appbar = ft.AppBar(
             title=ft.Text(f"Library Info: {self.library}"),
-            leading=ft.IconButton(ft.Icons.ARROW_BACK, on_click=lambda e: self.page.run_task(self._go_back) )
+            leading=ft.IconButton(ft.Icons.ARROW_BACK, on_click=lambda e: self.current_page.run_task(self._go_back) )
         )
-        self.page.update()
+        self.current_page.update()
 
     async def _go_back(self):
         try:
             from content.all_libraries import AllLibraries
             await self.content_manager(AllLibraries(
-                self.page,
+                self.current_page,
                 content_manager=self.content_manager))
         except Exception as e:
-            self.page.open(ft.SnackBar(
+            self.current_page.show_dialog(ft.SnackBar(
                 content=ft.Text(
                     value=f"Failed to load library info: {e}",
                     color=ft.Colors.WHITE),
@@ -139,7 +139,7 @@ class Info(ft.Column):
                 # Process File Info
                 for item in data:
                     if "error" in item:
-                        self.page.open(ft.SnackBar(
+                        self.current_page.show_dialog(ft.SnackBar(
                             content=ft.Text(f"Notice: {item['error']}", color=ft.Colors.WHITE),
                             bgcolor=ft.Colors.RED_ACCENT_400
                         ))
@@ -200,11 +200,11 @@ class Info(ft.Column):
                     content=ft.Stack(
                         controls=[
                             ft.Container(
-                                padding=ft.padding.only(top=75),
+                                padding=ft.Padding.only(top=75),
                                 content=ft.Card(
                                     elevation=10,
                                     content=ft.Container(
-                                        padding=ft.padding.all(25),
+                                        padding=ft.Padding.all(25),
                                         content=ft.Column(
                                             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                                             controls=[
@@ -227,7 +227,7 @@ class Info(ft.Column):
                             ft.Row(
                                 controls=[
                                     ft.Container(
-                                        padding=ft.padding.only(top=30),
+                                        padding=ft.Padding.only(top=30),
                                         content=ft.IconButton(
                                             icon=ft.Icons.DOWNLOAD,
                                             icon_color=ft.Colors.TRANSPARENT,
@@ -237,16 +237,16 @@ class Info(ft.Column):
                                         width=130, height=130,
                                         bgcolor="#00ffe5",
                                         shape=ft.BoxShape.CIRCLE,
-                                        alignment=ft.alignment.center,
+                                        alignment=ft.Alignment.CENTER,
                                         shadow=ft.BoxShadow(blur_radius=8, color="#00ffe5"),
                                         content=ft.Text(self.library[0:2].upper(), color="black",
                                                         weight=ft.FontWeight.BOLD, size=40),
                                     ),
                                     ft.Container(
-                                        padding=ft.padding.only(top=30),
+                                        padding=ft.Padding.only(top=30),
                                         content=ft.IconButton(
                                             bgcolor="#00ffe5", icon_color="black", icon=ft.Icons.DOWNLOAD,
-                                            on_click=lambda e: self.page.run_task(self._get_single_savefile,
+                                            on_click=lambda e: self.current_page.run_task(self._get_single_savefile,
                                                                                   self.library)
                                         ),
                                     )
@@ -259,8 +259,8 @@ class Info(ft.Column):
 
                 header_section = ft.Container(
                     content=ft.Column(horizontal_alignment=ft.CrossAxisAlignment.CENTER, controls=[img_icon]),
-                    alignment=ft.alignment.top_center,
-                    padding=ft.padding.only(top=40),
+                    alignment=ft.Alignment.TOP_CENTER,
+                    padding=ft.Padding.only(top=40),
                 )
 
                 self.input_card.controls.append(header_section)
@@ -289,7 +289,7 @@ class Info(ft.Column):
         def download_save_file(library_name: str, savefile_name: str, description: str, version: str, authority: str,
                                download_path: str):
             try:
-                self.page.close(self.download_modal)
+                self.current_page.close(self.download_modal)
 
                 with Library(self.DB_USER, self.DB_PASSWORD, self.DB_SYSTEM, self.DB_DRIVER) as lib:
                     try:
@@ -304,14 +304,14 @@ class Info(ft.Column):
                             remSavf=True,
                             getZip=True
                         )
-                        self.page.run_task(self.page.client_storage.set_async, 'download_path', download_path)
+                        self.current_page.run_task(self.current_page.client_storage.set_async, 'download_path', download_path)
                     except Exception as e:
-                        self.page.open(ft.SnackBar(
+                        self.current_page.open(ft.SnackBar(
                             content=ft.Text(f"Failed: {e}", color=ft.Colors.WHITE),
                             bgcolor=ft.Colors.RED_ACCENT_400))
                         return
 
-                    self.page.open(ft.SnackBar(
+                    self.current_page.open(ft.SnackBar(
                         content=ft.Text(f"Success, saved to: {download_path}", color=ft.Colors.WHITE),
                         bgcolor=ft.Colors.GREEN_ACCENT_400))
 
@@ -319,7 +319,7 @@ class Info(ft.Column):
                 if hasattr(self, "input_card"):
                     self.input_card.controls.clear()
                     self.input_card.controls.append(ft.Text(f"Connection Error: {e}"))
-                    self.page.update()
+                    self.current_page.update()
 
         # Ref fields for the download modal
         save_file_description_text_field_ref = ft.Ref[ft.TextField]()
@@ -374,7 +374,7 @@ class Info(ft.Column):
                 expand=False
             ),
             actions=[
-                ft.TextButton("Close", on_click=lambda e: self.page.close(self.download_modal)),
+                ft.TextButton("Close", on_click=lambda e: self.current_page.close(self.download_modal)),
                 ft.TextButton(
                     text="Download",
                     style=ft.ButtonStyle(
@@ -392,4 +392,4 @@ class Info(ft.Column):
             actions_alignment=ft.MainAxisAlignment.END,
             on_dismiss=lambda e: print("Modal dialog dismissed!"),
         )
-        self.page.open(self.download_modal)
+        self.current_page.open(self.download_modal)

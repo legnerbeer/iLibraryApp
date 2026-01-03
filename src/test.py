@@ -1,42 +1,26 @@
 import flet as ft
 
-
 def main(page: ft.Page):
-    page.title = "Standalone Badge Example"
+    page.title = "Flet counter example"
+    page.vertical_alignment = ft.MainAxisAlignment.CENTER
 
-    # --- Custom Badge/Label Implementation ---
-    standalone_badge = ft.Container(
-        content=ft.Text(
-            value="New",
-            color=ft.Colors.WHITE,
-            weight=ft.FontWeight.BOLD
-        ),
-        bgcolor=ft.Colors.BLUE_600,  # Badge background color
-        padding=ft.padding.only(left=8, right=8, top=4, bottom=4),  # Padding around the text
-        border_radius=ft.border_radius.all(10),  # Rounded corners for a pill/badge shape
-    )
+    input = ft.TextField(value="0", text_align=ft.TextAlign.RIGHT, width=100)
 
-    # --- Example with a different style ---
-    notification_count = ft.Container(
-        content=ft.Text(
-            value="99+",
-            color=ft.Colors.WHITE,
-            size=10,  # Smaller text size
-        ),
-        width=30,  # Fixed width for a circle shape (if width/height are the same)
-        height=30,
-        alignment=ft.alignment.center,
-        bgcolor=ft.Colors.RED_500,
-        border_radius=ft.border_radius.all(15),  # Half of height/width for a perfect circle
-    )
+    def minus_click(e):
+        input.value = str(int(input.value) - 1)
+
+    def plus_click(e):
+        input.value = str(int(input.value) + 1)
 
     page.add(
-        ft.Text("Standalone Label using Container:", size=20),
-        standalone_badge,
-        ft.Divider(),
-        ft.Text("Notification Count Badge:", size=20),
-        notification_count
+        ft.Row(
+            alignment=ft.MainAxisAlignment.CENTER,
+            controls=[
+                ft.IconButton(ft.Icons.REMOVE, on_click=minus_click),
+                input,
+                ft.IconButton(ft.Icons.ADD, on_click=plus_click),
+            ],
+        )
     )
 
-
-ft.app(target=main)
+ft.run(main)

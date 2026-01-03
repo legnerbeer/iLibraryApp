@@ -15,6 +15,7 @@ from content.all_users import AllUsers
 from content.settings import Settings
 
 
+
 # --- Helper: Unified Navigation Content Manager ---
 async def clear_and_add_control(page_content: ft.Container, control):
     """Replaces the content of the main container and updates the UI."""
@@ -29,7 +30,7 @@ async def run_sync(page: ft.Page, page_content: ft.Container):
     # Navigation logic for the Banner action
     async def _handle_settings_click(e):
         from content.settings import Settings
-        page.close(error_banner)
+        page.pop_dialog()
         # Helper to route inside the background task
         settings_view = Settings(
             page,
@@ -47,7 +48,7 @@ async def run_sync(page: ft.Page, page_content: ft.Container):
         ),
         actions=[
             ft.TextButton(
-                text="Go to Settings",
+                "Go to Settings",
                 style=ft.ButtonStyle(color=ft.Colors.ON_ERROR_CONTAINER),
                 on_click=_handle_settings_click,
             ),
@@ -67,39 +68,55 @@ async def run_sync(page: ft.Page, page_content: ft.Container):
             db_credentials = load_decrypted_credentials(ENCRYPTION_KEY_STR, env_file_path)
 
             if db_credentials:
-                page.close(error_banner)
-
+                page.pop_dialog()
                 try:
-                    # Sync Libraries
                     with Library(db_credentials["user"], db_credentials["password"],
                                  db_credentials["system"], db_credentials["driver"]) as lib:
-                        result = lib.getAllLibraries()
-                        await page.client_storage.set_async('all_libraries', result)
 
-                        data = json.loads(result)
-                        lib_names = [item["OBJNAME"] for item in data]
-                        await page.client_storage.set_async('library_names', lib_names)
+                        # 1. Ensure result is a valid string
+                        raw_result = lib.getAllLibraries()
+                        result_str = str(raw_result) if raw_result is not None else "[]"
+
+                        # Save the raw string
+                        await ft.SharedPreferences().set('all_libraries', str(result_str))
+
+                        # 2. Parse and validate the list
+                        data = json.loads(result_str)
+                        # Ensure every item is a string and handle missing keys
+                        lib_names = [str(item.get("OBJNAME", "")) for item in data if item.get("OBJNAME")]
+
+                        await ft.SharedPreferences().set('library_names', str(lib_names))
                         config.SERVER_STATUS = True
+
                 except Exception as e:
                     config.SERVER_STATUS = False
                     print(f"Library Sync Error: {e}")
 
+                    # --- Sync Users ---
                 try:
-                    # Sync Users
                     with User(db_credentials["user"], db_credentials["password"],
                               db_credentials["system"], db_credentials["driver"]) as user:
-                        result = user.getAllUsers(wantJson=True)
-                        await page.client_storage.set_async('all_users', result)
 
-                        data = json.loads(result)
-                        user_names = [item["AUTHORIZATION_NAME"] for item in data]
-                        await page.client_storage.set_async('user_names', user_names)
+                        # 1. Fetch result
+                        raw_user_result = user.getAllUsers(wantJson=True)
+                        user_result_str = str(raw_user_result) if raw_user_result is not None else "[]"
+
+                        await ft.SharedPreferences().set('all_users', str(user_result_str))
+
+                        # 2. Parse and validate names
+                        user_data = json.loads(user_result_str)
+                        # Use .get() to prevent KeyErrors and str() to prevent type mismatches
+                        user_names = [str(item.get("AUTHORIZATION_NAME", "")) for item in user_data if
+                                      item.get("AUTHORIZATION_NAME")]
+
+                        await ft.SharedPreferences().set('user_names', str(user_names))
+
                 except Exception as e:
                     print(f"User Sync Error: {e}")
         else:
             # Show banner if credentials missing
             if not error_banner.open:
-                page.open(error_banner)
+                page.show_dialog(error_banner)
 
         page.update()
         await asyncio.sleep(10.0)
@@ -107,12 +124,13 @@ async def run_sync(page: ft.Page, page_content: ft.Container):
 
 # --- Main Application Entry Point ---
 async def main(page: ft.Page):
+    print("Starting iLibrary App...")
     # Setup Page Properties
     page.title = "iLibrary App"
     page.theme = ft.Theme(use_material3=True, color_scheme_seed="#00ffe5")
 
     # Load Theme Mode from storage
-    theme_val = await page.client_storage.get_async("theme_mode")
+    theme_val = await ft.SharedPreferences().get("theme_mode")
     page.theme_mode = (
         ft.ThemeMode.LIGHT if theme_val == "light"
         else ft.ThemeMode.DARK if theme_val == "dark"
@@ -144,12 +162,15 @@ async def main(page: ft.Page):
                 title=ft.Text("Close App"),
                 content=ft.Text("Are you sure you want to leave?"),
                 actions=[
-                    ft.TextButton("No", on_click=lambda _: page.close(dlg)),
-                    ft.TextButton("Yes", on_click=lambda _: page.window.close(),
-                                  style=ft.ButtonStyle(color=ft.Colors.WHITE, bgcolor=ft.Colors.RED_400)),
+                    ft.TextButton("No", on_click=lambda _: page.pop_dialog()),
+                    ft.TextButton(
+                        content="Yes",
+                        on_click=lambda _: page.run_task(page.window.close),
+                        style=ft.ButtonStyle(bgcolor=ft.Colors.RED)
+                    )
                 ]
             )
-            page.open(dlg)
+            page.show_dialog(dlg)
 
         page.update()
 
@@ -196,4 +217,5 @@ async def main(page: ft.Page):
 
 
 if __name__ == "__main__":
-    ft.app(target=main)
+
+    ft.run(main)

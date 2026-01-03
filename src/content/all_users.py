@@ -17,7 +17,7 @@ class AllUsers(ft.Column):
             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
 
         )
-        self.page = page
+        self.current_page = page
         self.content_manager = content_manager
         self.env_file_path = Path(__file__).parent / ".env"
         self.badge_server_status = ft.Badge()
@@ -32,39 +32,72 @@ class AllUsers(ft.Column):
         self.list_container = ft.Column()
         self.input_card = self.list_container
         self.progress_bar = ft.ProgressRing()
-        self.progress_bar_container = ft.Container(self.progress_bar, alignment=ft.alignment.center)
+        self.progress_bar_container = ft.Container(self.progress_bar, alignment=ft.Alignment.CENTER)
         self.controls.append(self.progress_bar_container)
 
         # Start initialization
-        self.page.run_task(self.async_init)
+        self.current_page.run_task(self.async_init)
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.progress_bar.visible = True
         self.progress_bar_container.visible = True
-        self.page.update()
+        self.current_page.update()
 
     # --------------------------------------------------------
 
+    async def load_user_names(self):
+        raw_data = await ft.SharedPreferences().get(key='user_names')
+
+        try:
+            if isinstance(raw_data, list):
+                # If it's a list of one string that looks like a list: ["['A', 'B']"]
+                if len(raw_data) == 1 and isinstance(raw_data[0], str) and raw_data[0].startswith("["):
+                    # Clean the string and parse it properly
+                    # We replace single quotes with double quotes for valid JSON
+                    valid_json_string = raw_data[0].replace("'", '"')
+                    self.user_list = json.loads(valid_json_string)
+                else:
+                    self.user_list = raw_data
+            elif isinstance(raw_data, str):
+                # If it's just the string: "['A', 'B']"
+                valid_json_string = raw_data.replace("'", '"')
+                self.user_list = json.loads(valid_json_string)
+            else:
+                self.user_list = []
+        except Exception as e:
+            print(f"Error parsing user_names: {e}")
+            self.user_list = []
+
+        # Clean up any extra whitespace or quotes left over
+        self.user_list = [str(u).strip() for u in self.user_list]
+
+
     async def async_init(self):
-        #self.page.run_task(self._load_server_status)
+        #self.current_page.run_task(self._load_server_status)
         await self._create_app_bar()
-        #SEARCHBAR
-        user_list = await self.page.client_storage.get_async('user_names')
+        await self.load_user_names()
 
         def open_searchbar(e):
-            self.searchbar.open_view()
+            self.current_page.run_task(self.searchbar.open_view)
 
         def handle_change(e):
-            list_to_show = [user for user in user_list if e.data.upper() in user]
+            # 2. Use self.user_list (the sanitized version)
+            query = e.data.upper()
+
+            # 3. Defensive check: ensure user is treated as a string during filter
+            list_to_show = [user for user in self.user_list if query in str(user).upper()]
+            print(list_to_show)
             lv.controls.clear()
             for i in list_to_show:
                 lv.controls.append(
                     ft.ListTile(
                         title=ft.Text(f"{i}"),
-                        on_click=lambda e, name=i: self.page.run_task(
+                        on_click=lambda e, name=i: self.current_page.run_task(
                             self._show_single_user_info, name
                         ),
-                        data=i))
+                        data=i
+                    )
+                )
             self.searchbar.update()
 
         lv = ft.ListView()
@@ -75,16 +108,14 @@ class AllUsers(ft.Column):
             view_hint_text="Suggestions...",
             on_change=handle_change,
             on_tap=open_searchbar,
-            controls=[
-                lv
-            ],
+            controls=[lv],
         )
 
-        if not await self.page.client_storage.contains_key_async('download_path'):
+        if not await ft.SharedPreferences().contains_key('download_path'):
             self.DOWNLOAD_PATH = Path.home() / "Downloads"
-            await self.page.client_storage.set_async('download_path', str(self.DOWNLOAD_PATH))
+            await ft.SharedPreferences().set('download_path', str(self.DOWNLOAD_PATH))
         else:
-            self.DOWNLOAD_PATH = Path(await self.page.client_storage.get_async('download_path'))
+            self.DOWNLOAD_PATH = Path(await ft.SharedPreferences().get('download_path'))
 
         self.ENCRYPTION_KEY_STR = get_or_generate_key(self.env_file_path)
         load_dotenv(self.env_file_path, override=True)
@@ -128,14 +159,14 @@ class AllUsers(ft.Column):
 
             # In Flet, you must update the page to see changes
             self.update()
-            self.page.update()
+            self.current_page.update()
             await asyncio.sleep(10.0)
 
     async def _create_app_bar(self):
         """
             Creating the App Bar
         """
-        self.page.appbar = ft.AppBar(
+        self.current_page.appbar = ft.AppBar(
             title=ft.Text("All Users"),
             # actions=[
             #     # Reference the instance variable here
@@ -143,13 +174,13 @@ class AllUsers(ft.Column):
             #     ft.Container(width=60)
             # ]
         )
-        self.page.update()
+        self.current_page.update()
 
     async def _rebuild_users(self):
         """
         rebuild the list of libraries
         """
-        result = await self.page.client_storage.get_async('all_users')
+        result = await ft.SharedPreferences().get('all_users')
         if isinstance(result, str):
 
             data = json.loads(result)
@@ -168,13 +199,13 @@ class AllUsers(ft.Column):
                         icon=ft.Icons.MORE_VERT,
                         items=[
                             ft.PopupMenuItem(
-                                text="Show Details",
-                                on_click=lambda e, name=item["AUTHORIZATION_NAME"]: self.page.run_task(
+                                "Show Details",
+                                on_click=lambda e, name=item["AUTHORIZATION_NAME"]: self.current_page.run_task(
                                     self._show_single_user_info, name)
                             ),
                         ],
                     ),
-                    on_click=lambda e, name=item["AUTHORIZATION_NAME"]: self.page.run_task(self._show_single_user_info, name),
+                    on_click=lambda e, name=item["AUTHORIZATION_NAME"]: self.current_page.run_task(self._show_single_user_info, name),
                     is_three_line=True,
                    subtitle=ft.Text(f"Description: {item["TEXT_DESCRIPTION"]} \nCreated: {item['CREATION_TIMESTAMP']}"),
                     bgcolor=ft.Colors.INVERSE_PRIMARY,
@@ -198,7 +229,7 @@ class AllUsers(ft.Column):
         :param name:
         """
         from content.single_user_info import SingleUserInfo
-        await self.content_manager(SingleUserInfo(self.page, name, self.content_manager))
+        await self.content_manager(SingleUserInfo(self.current_page, name, self.content_manager))
 
 
     # --------------------------------------------------------
