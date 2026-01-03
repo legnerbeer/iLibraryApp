@@ -6,21 +6,20 @@ import flet as ft
 from dotenv import load_dotenv
 
 from content.functions import load_decrypted_credentials, get_or_generate_key
-from iLibrary import Library
+from iLibrary import User
 
-#Information about Library: <NAME>
-class Info(ft.Column):
-    def __init__(self, page: ft.Page, library:str, content_manager):
+class SingleUserInfo(ft.Column):
+
+    def __init__(self, page: ft.Page, user:str, content_manager):
         super().__init__(
             scroll=ft.ScrollMode.ADAPTIVE,
             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
 
 
         )
-        self.DOWNLOAD_PATH = Path.home() / "Downloads"
         self.page = page
         self.content_manager = content_manager
-        self.library = library
+        self.user = user
         self.env_file_path = Path(__file__).parent / ".env"
         self.ENCRYPTION_KEY_STR = None
         self.db_credentials = None
@@ -48,21 +47,21 @@ class Info(ft.Column):
 
     def _create_app_bar(self):
         self.page.appbar = ft.AppBar(
-            title=ft.Text(f"Library Info: {self.library}"),
+            title=ft.Text(f"User Info: {self.user}"),
             leading=ft.IconButton(ft.Icons.ARROW_BACK, on_click=lambda e: self.page.run_task(self._go_back) )
         )
         self.page.update()
 
     async def _go_back(self):
         try:
-            from content.all_libraries import AllLibraries
-            await self.content_manager(AllLibraries(
+            from content.all_users import AllUsers
+            await self.content_manager(AllUsers(
                 self.page,
                 content_manager=self.content_manager))
         except Exception as e:
             self.page.open(ft.SnackBar(
                 content=ft.Text(
-                    value=f"Failed to load library info: {e}",
+                    value=f"Failed to load User info: {e}",
                     color=ft.Colors.WHITE),
                 bgcolor=ft.Colors.RED_ACCENT_400)
             )
@@ -86,7 +85,7 @@ class Info(ft.Column):
 
                 if self.input_card not in self.controls:
                     self.controls.extend([self.input_card])
-                await self._get_info_about_library()
+                await self._get_info_about_user()
             else:
                 pass
                 #await self._show_setup_modal()
@@ -96,7 +95,7 @@ class Info(ft.Column):
 
         self.update()
 
-    async def _get_info_about_library(self):
+    async def _get_info_about_user(self):
         try:
             # 1. Clear previous results and show progress
             self.input_card.controls.clear()
@@ -104,10 +103,9 @@ class Info(ft.Column):
             self.progress_bar_container.visible = True
             self.update()
 
-            with Library(self.DB_USER, self.DB_PASSWORD, self.DB_SYSTEM, self.DB_DRIVER) as self.lib:
+            with (User(self.DB_USER, self.DB_PASSWORD, self.DB_SYSTEM, self.DB_DRIVER) as self.User):
                 # Fetch data
-                result = self.lib.getLibraryInfo(library=self.library, wantJson=True)
-                qFiles = self.lib.getFileInfo(library=self.library, qFiles=False)
+                result = self.User.getSingleUserInformation(username=str(self.user), wantJson=True)
 
                 # --- ROBUST DATA PARSING ---
                 # This handles the "Expecting value" error by checking types before loading
@@ -124,10 +122,10 @@ class Info(ft.Column):
                         # If it's not JSON, return it as a list with an error message
                         return [{"error": f"Parse Error: {str(e)}", "raw": str(input_data)}]
 
-                data = safe_parse(qFiles)
-                library_info_data = safe_parse(result)
-
-                # --- UI CONSTRUCTION ---
+                data = safe_parse(result)
+               #for key, value in data.items():
+                #
+                # # --- UI CONSTRUCTION ---
                 result_text = ft.Column()
                 panel_list = ft.ExpansionPanelList(
                     expand_icon_color=ft.Colors.PRIMARY,
@@ -135,8 +133,8 @@ class Info(ft.Column):
                     divider_color=ft.Colors.PRIMARY,
                     controls=[],
                 )
-
-                # Process File Info
+                #
+                # # Process File Info
                 for item in data:
                     if "error" in item:
                         self.page.open(ft.SnackBar(
@@ -151,35 +149,14 @@ class Info(ft.Column):
                             ))
                         continue
 
-                    content_column = ft.Column()
-                    for key, value in item.items():
-                        if not value or value == "None" or key == "OBJNAME":
-                            continue
-                        content_column.controls.append(
-                            ft.Row(controls=[
-                                ft.Text(key.replace("_", " ").title(), weight=ft.FontWeight.BOLD),
-                                ft.Text(str(value))
-                            ])
-                        )
-
-                    panel_list.controls.append(
-                        ft.ExpansionPanel(
-                            header=ft.ListTile(
-                                title=ft.Text(item.get("OBJNAME", "Unknown"), weight=ft.FontWeight.BOLD)),
-                            can_tap_header=True,
-                            bgcolor=ft.Colors.TRANSPARENT,
-                            content=ft.Container(content=content_column, padding=10)
-                        )
-                    )
-
-                # Process Library Info
-                # Ensure library_info_data is a dict (if it was a list, take the first item)
-                info_dict = library_info_data[0] if isinstance(library_info_data, list) else library_info_data
+                # # Process user Info
+                # # Ensure user_info_data is a dict (if it was a list, take the first item)
+                info_dict = data[0] if isinstance(data, list) else data
 
                 for key, value in info_dict.items():
-                    if key == "LIBRARY_SIZE" and value:
+                    if key in ["MAXIMUM_ALLOWED_STORAGE", "STORAGE_USED"] and value:
                         try:
-                            mb = float(value) / 1000000
+                            mb = float(value) / 1000
                             value = f"{round(mb, 2)} Mb"
                         except:
                             pass
@@ -195,7 +172,57 @@ class Info(ft.Column):
                             )
                         )
 
-                # --- ICON AND LAYOUT SECTION ---
+                # # --- ICON AND LAYOUT SECTION ---
+
+                # -- Set User Class Name and Status Color--
+                user_status = data["STATUS"]
+                status_color = ft.Colors.GREEN
+                if not user_status == "*ENABLED":
+                    status_color = ft.Colors.RED
+
+                user_class_name = data["USER_CLASS_NAME"]
+                match user_class_name:
+                    case "*USER":
+                        user_class_name_color = ft.Colors.LIME
+                    case "*PGMR":
+                        user_class_name_color = ft.Colors.PINK
+                    case "*SECADM":
+                        user_class_name_color = ft.Colors.PURPLE
+                    case "*SECOFR":
+                        user_class_name_color = ft.Colors.INDIGO
+                    case "*SYSOPR":
+                        user_class_name_color = ft.Colors.RED
+
+                user_badge = ft.Row(
+                    alignment=ft.MainAxisAlignment.CENTER,
+                    controls=[
+                        ft.Container( #active Status
+                            content=ft.Text(
+                                value=user_status,
+                                color=ft.Colors.WHITE,
+                                weight=ft.FontWeight.BOLD,
+                                size=10
+                            ),
+                            bgcolor=status_color,
+                            padding=ft.padding.only(left=4, right=4, top=2, bottom=2),  # Padding around the text
+                            border_radius=ft.border_radius.all(10),  # Rounded corners for a pill/badge shape
+                        ),
+                        ft.Container(  #  Status Class Name
+                            content=ft.Text(
+                                value=user_class_name,
+                                color=ft.Colors.WHITE,
+                                weight=ft.FontWeight.BOLD,
+                                size=10
+                            ),
+                            bgcolor=user_class_name_color,
+                            padding=ft.padding.only(left=4, right=4, top=2, bottom=2),  # Padding around the text
+                            border_radius=ft.border_radius.all(10),  # Rounded corners for a pill/badge shape
+                        )
+                    ]
+                )
+
+
+
                 img_icon = ft.Container(
                     content=ft.Stack(
                         controls=[
@@ -209,15 +236,13 @@ class Info(ft.Column):
                                             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                                             controls=[
                                                 ft.Container(height=40),
-                                                ft.Text(f"Library {self.library.upper()}", size=20,
+                                                ft.Text(f"{self.user.upper()}", size=20,
                                                         weight=ft.FontWeight.BOLD),
-                                                ft.Text(f"Viewing details for {self.library}",
-                                                        text_align=ft.TextAlign.CENTER),
+                                                user_badge,
                                                 ft.Container(height=10),
                                                 result_text,
                                                 ft.Container(height=10),
-                                                ft.Text("Files", size=18, weight=ft.FontWeight.BOLD,
-                                                        style=ft.TextStyle(decoration=ft.TextDecoration.UNDERLINE)),
+
                                                 panel_list
                                             ],
                                         ),
@@ -225,30 +250,15 @@ class Info(ft.Column):
                                 ),
                             ),
                             ft.Row(
-                                controls=[
-                                    ft.Container(
-                                        padding=ft.padding.only(top=30),
-                                        content=ft.IconButton(
-                                            icon=ft.Icons.DOWNLOAD,
-                                            icon_color=ft.Colors.TRANSPARENT,
-                                        ),
-                                    ),
+                                [
                                     ft.Container(
                                         width=130, height=130,
                                         bgcolor="#00ffe5",
                                         shape=ft.BoxShape.CIRCLE,
                                         alignment=ft.alignment.center,
                                         shadow=ft.BoxShadow(blur_radius=8, color="#00ffe5"),
-                                        content=ft.Text(self.library[0:2].upper(), color="black",
+                                        content=ft.Text(self.user[0:2].upper(), color="black",
                                                         weight=ft.FontWeight.BOLD, size=40),
-                                    ),
-                                    ft.Container(
-                                        padding=ft.padding.only(top=30),
-                                        content=ft.IconButton(
-                                            bgcolor="#00ffe5", icon_color="black", icon=ft.Icons.DOWNLOAD,
-                                            on_click=lambda e: self.page.run_task(self._get_single_savefile,
-                                                                                  self.library)
-                                        ),
                                     )
                                 ],
                                 alignment=ft.MainAxisAlignment.SPACE_AROUND,
@@ -284,17 +294,17 @@ class Info(ft.Column):
             self.update()
 
     async def _get_single_savefile(self, name: str):
-        """Get the Single Savefile of a Library """
+        """Get the Single Savefile of a user """
 
-        def download_save_file(library_name: str, savefile_name: str, description: str, version: str, authority: str,
+        def download_save_file(user_name: str, savefile_name: str, description: str, version: str, authority: str,
                                download_path: str):
             try:
                 self.page.close(self.download_modal)
 
-                with Library(self.DB_USER, self.DB_PASSWORD, self.DB_SYSTEM, self.DB_DRIVER) as lib:
+                with user(self.DB_USER, self.DB_PASSWORD, self.DB_SYSTEM, self.DB_DRIVER) as user:
                     try:
-                        lib.saveLibrary(
-                            library=library_name,
+                        user.saveuser(
+                            user=user_name,
                             saveFileName=savefile_name,
                             description=description,
                             localPath=download_path,
@@ -332,7 +342,7 @@ class Info(ft.Column):
 
         self.download_modal = ft.AlertDialog(
             modal=True,
-            title=ft.Text(f"Create Savefile from Library: {name}"),
+            title=ft.Text(f"Create Savefile from user: {name}"),
             content=ft.Column([
                 ft.TextField(
                     ref=save_file_name_text_field_ref,
@@ -344,7 +354,7 @@ class Info(ft.Column):
                 ft.TextField(
                     ref=save_file_description_text_field_ref,
                     label="Description",
-                    value="Saved by iLibrary",
+                    value="Saved by iuser",
                     border_color=ft.Colors.PRIMARY,
                 ),
                 ft.Container(height=5),
@@ -361,7 +371,7 @@ class Info(ft.Column):
                     label="Authority",
                     border_color=ft.Colors.PRIMARY,
                     value="*ALL",
-                    helper_text="*EXCLUDE, *ALL, *CHANGE, *LIBCRTAUT, *USE"
+                    helper_text="*EXCLUDE, *ALL, *CHANGE, *userCRTAUT, *USE"
                 ),
                 ft.Container(height=5),
                 ft.TextField(
@@ -381,7 +391,7 @@ class Info(ft.Column):
                         bgcolor=ft.Colors.PRIMARY,
                         color=ft.Colors.ON_PRIMARY),
                     on_click=lambda e: download_save_file(
-                        library_name=name,
+                        user_name=name,
                         savefile_name=save_file_name_text_field_ref.current.value,
                         description=save_file_description_text_field_ref.current.value,
                         version=save_file_version_text_field_ref.current.value,

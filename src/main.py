@@ -1,179 +1,199 @@
 import asyncio
 import os
+import json
+import types
 from pathlib import Path
 from dotenv import load_dotenv
-from iLibrary import Library
+
 import flet as ft
-import json
+from iLibrary import Library, User
+
 import content.config as config
 from content.functions import load_decrypted_credentials, get_or_generate_key
-# Assuming content.all_libraries is available
 from content.all_libraries import AllLibraries
+from content.all_users import AllUsers
 from content.settings import Settings
 
-async def run_sync(page):
-    env_file_path = Path(__file__).parent /"content"/ ".env"
-    ENCRYPTION_KEY_STR = get_or_generate_key(env_file_path)
-    load_dotenv(env_file_path, override=True)
+
+# --- Helper: Unified Navigation Content Manager ---
+async def clear_and_add_control(page_content: ft.Container, control):
+    """Replaces the content of the main container and updates the UI."""
+    page_content.content = control
+    page_content.update()
+
+
+# --- Background Task: Sync and Banner Management ---
+async def run_sync(page: ft.Page, page_content: ft.Container):
+    env_file_path = Path(__file__).parent / "content" / ".env"
+
+    # Navigation logic for the Banner action
+    async def _handle_settings_click(e):
+        from content.settings import Settings
+        page.close(error_banner)
+        # Helper to route inside the background task
+        settings_view = Settings(
+            page,
+            content_manager=lambda c: clear_and_add_control(page_content, c)
+        )
+        await clear_and_add_control(page_content, settings_view)
+
+    # Define the persistent Banner
+    error_banner = ft.Banner(
+        bgcolor=ft.Colors.ERROR_CONTAINER,
+        leading=ft.Icon(ft.Icons.ERROR_OUTLINE, color=ft.Colors.ERROR, size=40),
+        content=ft.Text(
+            value="No Database Connection. Please check Credentials in Settings.",
+            color=ft.Colors.ON_ERROR_CONTAINER,
+        ),
+        actions=[
+            ft.TextButton(
+                text="Go to Settings",
+                style=ft.ButtonStyle(color=ft.Colors.ON_ERROR_CONTAINER),
+                on_click=_handle_settings_click,
+            ),
+        ],
+    )
+
+    # Initialize the overlay
+    page.overlay.append(error_banner)
+    page.update()
+
     while True:
-        if os.getenv("ENCRYPTED_DB_CREDENTIALS"):
-            db_credentials = load_decrypted_credentials(
-                key=ENCRYPTION_KEY_STR,
-                env_file_path=env_file_path,
-            )
+        ENCRYPTION_KEY_STR = get_or_generate_key(env_file_path)
+        load_dotenv(env_file_path, override=True)
+        credentials_str = os.getenv("ENCRYPTED_DB_CREDENTIALS")
+
+        if credentials_str:
+            db_credentials = load_decrypted_credentials(ENCRYPTION_KEY_STR, env_file_path)
 
             if db_credentials:
-                DB_DRIVER = db_credentials["driver"]
-                DB_USER = db_credentials["user"]
-                DB_PASSWORD = db_credentials["password"]
-                DB_SYSTEM = db_credentials["system"]
-
+                page.close(error_banner)
 
                 try:
-                    with Library(DB_USER, DB_PASSWORD, DB_SYSTEM, DB_DRIVER) as lib:
+                    # Sync Libraries
+                    with Library(db_credentials["user"], db_credentials["password"],
+                                 db_credentials["system"], db_credentials["driver"]) as lib:
                         result = lib.getAllLibraries()
                         await page.client_storage.set_async('all_libraries', result)
+
                         data = json.loads(result)
-                        lib_names = []
-                        for item in data:
-                            lib_names.append(item["OBJNAME"])
+                        lib_names = [item["OBJNAME"] for item in data]
                         await page.client_storage.set_async('library_names', lib_names)
-                        lib.conn.close()
                         config.SERVER_STATUS = True
                 except Exception as e:
                     config.SERVER_STATUS = False
-                    print(e)
+                    print(f"Library Sync Error: {e}")
 
-        await asyncio.sleep(60.0)
+                try:
+                    # Sync Users
+                    with User(db_credentials["user"], db_credentials["password"],
+                              db_credentials["system"], db_credentials["driver"]) as user:
+                        result = user.getAllUsers(wantJson=True)
+                        await page.client_storage.set_async('all_users', result)
 
+                        data = json.loads(result)
+                        user_names = [item["AUTHORIZATION_NAME"] for item in data]
+                        await page.client_storage.set_async('user_names', user_names)
+                except Exception as e:
+                    print(f"User Sync Error: {e}")
+        else:
+            # Show banner if credentials missing
+            if not error_banner.open:
+                page.open(error_banner)
+
+        page.update()
+        await asyncio.sleep(10.0)
+
+
+# --- Main Application Entry Point ---
 async def main(page: ft.Page):
-    page.run_task(run_sync, page)
-    #await page.client_storage.clear_async()
-    page.theme = ft.Theme(
-        use_material3=True,
-        color_scheme_seed="#00ffe5"
+    # Setup Page Properties
+    page.title = "iLibrary App"
+    page.theme = ft.Theme(use_material3=True, color_scheme_seed="#00ffe5")
 
-    )
-    try:
-        theme_mode = await page.client_storage.get_async("theme_mode")
-    except Exception:
-        theme_mode=None
+    # Load Theme Mode from storage
+    theme_val = await page.client_storage.get_async("theme_mode")
     page.theme_mode = (
-        ft.ThemeMode.LIGHT if theme_mode == "light"
-        else ft.ThemeMode.DARK if theme_mode == "dark"
+        ft.ThemeMode.LIGHT if theme_val == "light"
+        else ft.ThemeMode.DARK if theme_val == "dark"
         else ft.ThemeMode.SYSTEM
     )
-    # ---------------------------------------------------
-    # Container for dynamically changing content
-    # ---------------------------------------------------
-    # This control will hold the current view (e.g., AllLibraries, Settings)
-    page_content = ft.Container(content=ft.Text("Initializing..."))
 
-    # ---------------------------------------------------
-    # Helper: replace content instantly
-    # ---------------------------------------------------
-    async def clear_and_add_control(control):
-        # Instead of clearing all controls on the page, we update the content
-        # of the dedicated page_content container.
-        page_content.content = control
-        page_content.update()  # Use update_async for controls
+    # Main Dynamic Content Area
+    page_content = ft.Container(expand=True)
 
-    # Attaching the helper to page is fine, but we'll use it directly in handlers.
-    # page.clear_and_add_control = clear_and_add_control # Removed: using it directly is cleaner
-    # ---------------------------------------------------
+    # Navigation Helper Wrapper
+    async def route_to(control):
+        await clear_and_add_control(page_content, control)
+
     # Navigation Bar Handler
-    # ---------------------------------------------------
     async def navigation_bar_changed(e):
         idx = e.control.selected_index
 
-        if idx == 0:  # ALL LISTS
-            # Load the AllLibraries content
-            await clear_and_add_control(AllLibraries(
-                page,
-                content_manager=clear_and_add_control))
-            page.title = "Libraries"  # Update page title
-
+        if idx == 0:  # Libraries
+            page.title = "Libraries"
+            await route_to(AllLibraries(page, content_manager=route_to))
         elif idx == 1:  # Users
-            await clear_and_add_control(
-                ft.Container(
-                    content=ft.Text("This Content (Users) is in Development"),
-                    alignment=ft.alignment.center
-                )
-            )
-            page.title = "Users"  # Update page title
-            # page.open(ft.SnackBar(ft.Text("This Content is in Development"), show_close_icon=True))
-
-        elif idx == 2:  # SETTINGS
+            page.title = "Users"
+            await route_to(AllUsers(page, content_manager=route_to))
+        elif idx == 2:  # Settings
             page.title = "Settings"
-            await clear_and_add_control(Settings(
-                page,
-                content_manager=clear_and_add_control))
-        elif idx == 3:  # Leave the App
+            await route_to(Settings(page, content_manager=route_to))
+        elif idx == 3:  # Exit
             dlg = ft.AlertDialog(
-                title="Close App",
-                content=ft.Text("Are you sure you want to leave the app?"),
+                title=ft.Text("Close App"),
+                content=ft.Text("Are you sure you want to leave?"),
                 actions=[
-                    ft.TextButton("No", on_click=lambda e: page.close(dlg)),
-                    ft.TextButton("Yes", on_click=lambda e: page.window.close(), style=ft.ButtonStyle(color=ft.Colors.WHITE, bgcolor=ft.Colors.RED_ACCENT_400)),
+                    ft.TextButton("No", on_click=lambda _: page.close(dlg)),
+                    ft.TextButton("Yes", on_click=lambda _: page.window.close(),
+                                  style=ft.ButtonStyle(color=ft.Colors.WHITE, bgcolor=ft.Colors.RED_400)),
                 ]
             )
             page.open(dlg)
 
-
-        # Ensure the entire page updates if necessary (e.g., if title changed)
         page.update()
 
+    # Sidebar UI
     rail = ft.NavigationRail(
         selected_index=0,
         label_type=ft.NavigationRailLabelType.ALL,
         group_alignment=-0.9,
         destinations=[
-            ft.NavigationRailDestination(
-                icon=ft.Icons.LIBRARY_BOOKS_OUTLINED,
-                selected_icon=ft.Icons.LIBRARY_BOOKS,
-                label="All Libraries",
-            ),
-            ft.NavigationRailDestination(
-                icon=ft.Icon(ft.Icons.ACCOUNT_CIRCLE_OUTLINED),
-                selected_icon=ft.Icon(ft.Icons.ACCOUNT_CIRCLE),
-                label="Users",
-            ),
-            ft.NavigationRailDestination(
-                icon=ft.Icons.SETTINGS_OUTLINED,
-                selected_icon=ft.Icon(ft.Icons.SETTINGS),
-                label_content=ft.Text("Settings"),
-            ),
-            ft.NavigationRailDestination(
-                icon=ft.Icons.EXIT_TO_APP_OUTLINED,
-                selected_icon=ft.Icon(ft.Icons.EXIT_TO_APP),
-                label_content=ft.Text("Close App"),
-
-            ),
+            ft.NavigationRailDestination(icon=ft.Icons.LIBRARY_BOOKS_OUTLINED, selected_icon=ft.Icons.LIBRARY_BOOKS,
+                                         label="Libraries"),
+            ft.NavigationRailDestination(icon=ft.Icons.ACCOUNT_CIRCLE_OUTLINED, selected_icon=ft.Icons.ACCOUNT_CIRCLE,
+                                         label="Users"),
+            ft.NavigationRailDestination(icon=ft.Icons.SETTINGS_OUTLINED, selected_icon=ft.Icons.SETTINGS,
+                                         label="Settings"),
+            ft.NavigationRailDestination(icon=ft.Icons.EXIT_TO_APP_OUTLINED, selected_icon=ft.Icons.EXIT_TO_APP,
+                                         label="Close App"),
         ],
         on_change=navigation_bar_changed,
     )
 
-    # ---------------------------------------------------
-    # Initial Page Layout
-    # ---------------------------------------------------
+    # Initial Layout Construction
     page.add(
         ft.Row(
             [
                 rail,
                 ft.VerticalDivider(width=1),
-                # Add the content container to the Row, expanding it to fill space
-                ft.Column([page_content], expand=True, alignment=ft.MainAxisAlignment.START, scroll=ft.ScrollMode.ADAPTIVE)
+                ft.Column(
+                    [page_content],
+                    expand=True,
+                    alignment=ft.MainAxisAlignment.START,
+                    scroll=ft.ScrollMode.ADAPTIVE
+                )
             ],
             expand=True,
         )
     )
 
-    # ---------------------------------------------------
-    # Load default content (Index 0) on startup
-    # ---------------------------------------------------
-    # Call the handler with an event object reflecting the default index (0)
-    import types
+    # Start Background Sync Task
+    page.run_task(run_sync, page, page_content)
+
+    # Load Default View (Libraries)
     await navigation_bar_changed(types.SimpleNamespace(control=rail))
 
 
-ft.app(main)
+if __name__ == "__main__":
+    ft.app(target=main)

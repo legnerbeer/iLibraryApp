@@ -10,7 +10,7 @@ authors = [
 dependencies = [
     "flet==0.28.3",
     "dotenv",
-    "iLibrary==0.0.7",
+    "iLibrary==0.0.12",
     "paramiko",
     "pyodbc==5.3.0",
     "certifi"
@@ -39,7 +39,7 @@ path = "src"
 dev-dependencies = [
     "flet[all]==0.28.3",
     "dotenv",
-    "iLibrary==0.0.7",
+    "iLibrary==0.0.12",
     "paramiko",
     "pyodbc==5.3.0",
     "certifi"

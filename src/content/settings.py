@@ -38,7 +38,7 @@ class Settings(ft.Column):
 
     async def async_init(self):
         await self._load_modals()
-        self.list_container.controls.append(
+        self.list_container.controls.extend([
             ft.Container(ft.ListTile(
                 leading=None,
                 title=ft.Text("IBMi Server Settings"),
@@ -48,9 +48,8 @@ class Settings(ft.Column):
                 bgcolor=ft.Colors.INVERSE_PRIMARY,
             ),
                 border_radius=8,
-            )
-        )
-        self.list_container.controls.append(
+            ),
+
             ft.Container(ft.ListTile(
                 leading=None,
                 title=ft.Text("Switch Thema Mode"),
@@ -59,7 +58,17 @@ class Settings(ft.Column):
                 bgcolor=ft.Colors.INVERSE_PRIMARY,
             ),
                 border_radius=8,
+            ),
+            ft.Container(ft.ListTile(
+                leading=None,
+                title=ft.Text("Clear iLibrary App"),
+                on_click=lambda e: self.page.open(self.clear_app_data_modal),
+                is_three_line=True,
+                bgcolor=ft.Colors.INVERSE_PRIMARY,
+            ),
+                border_radius=8,
             )
+            ]
         )
         await self._create_app_bar()
         self.controls.append(self.list_container)
@@ -97,6 +106,21 @@ class Settings(ft.Column):
         )
 
     async def _load_modals (self):
+        self.clear_app_data_modal = ft.AlertDialog(
+            modal=True,
+            title=ft.Text("Clearing iLibrary", color=ft.Colors.RED),
+            content=ft.Text("Are you sure you want to clear and close the iLibrary App?"),
+            actions=[
+                ft.TextButton("Cancel", on_click=lambda e: self.page.close(self.clear_app_data_modal)),
+                ft.TextButton(
+                    text="Clear",
+                    style=ft.ButtonStyle(color=ft.Colors.ON_PRIMARY, bgcolor=ft.Colors.RED),
+                    on_click=lambda e: (
+                        self.page.run_task(self._clear_app_data, e),
+                    )
+                )
+            ]
+        )
         self.switch_shema_modal = ft.AlertDialog(
             modal=True,
             title=ft.Text("Switching Thema"),
@@ -250,4 +274,12 @@ class Settings(ft.Column):
         await self.page.client_storage.set_async("theme_mode", selected_theme)
 
         self.page.update()
+
+    async def _clear_app_data(self, e):
+        await self.page.client_storage.clear_async()
+        self.clear_app_data_modal.open = False
+        if os.path.isfile(self.env_file_path):
+            os.remove(self.env_file_path)
+        self.page.update()
+        self.page.window.close()
 
