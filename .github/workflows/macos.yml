@@ -122,7 +122,7 @@ jobs:
 
     - name: Flet Build macOS
       run: |
-        flet build macos --no-input --verbose --build-number=$BUILD_NUMBER --build-version=$BUILD_VERSION
+        flet build macos --verbose --build-number=$BUILD_NUMBER --build-version=$BUILD_VERSION
 
     - name: Archive macOS Build
       run: |
