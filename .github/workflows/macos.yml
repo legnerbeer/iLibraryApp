@@ -120,20 +120,21 @@ jobs:
 
 
 
+    - name: Flet Build macOS
+      run: |
+        flet build macos --no-input --verbose --build-number=$BUILD_NUMBER --build-version=$BUILD_VERSION
+
+    - name: Archive macOS Build
+      run: |
+        cd build/macos
+        zip -r ../../macos-build.zip .
+
     - name: Upload macOS Artifact
-
-      uses: actions/upload-artifact@v4.3.4  # https://github.com/marketplace/actions/upload-a-build-artifact
-
+      uses: actions/upload-artifact@v4
       with:
-
-        name: macos-build-artifact  # the name of the artifact
-
-        path: build/macos  # location of Flet build output
-
-        if-no-files-found: error  # Fail the action with an error message if no files are found
-
-        overwrite: false  # If true, an artifact with a matching name will be deleted before a new one is uploaded. If false, the action will fail if an artifact for the given name already exists. Does not fail if the artifact does not exist.
-
+        name: macos-build-artifact
+        path: macos-build.zip  # Upload the single zip file instead
+        if-no-files-found: error
 
 
 
