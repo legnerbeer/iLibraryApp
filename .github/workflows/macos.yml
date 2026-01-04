@@ -1,4 +1,3 @@
-name: Windows Build
 
 on:
   # Runs on push to any of the below branches
@@ -36,7 +35,7 @@ env:
 
 jobs:
   build:
-    runs-on: windows-latest
+    runs-on: macos-latest
 
     steps:
     - name: Checkout code
@@ -50,18 +49,17 @@ jobs:
     - name: Install flet-cli ${{ env.FLET_CLI_VERSION }}
       run: |
         python -m pip install --upgrade pip
-        pip install flet-cli==$env:FLET_CLI_VERSION
-        pip install -r requirements.txt
+        pip install flet-cli==$FLET_CLI_VERSION
 
-    - name: Flet Build Windows
+    - name: Flet Build macOS
       run: |
-        echo "y" | flet build windows --verbose --no-rich-output --build-number=$env:BUILD_NUMBER --build-version=$env:BUILD_VERSION
+        echo "y" | flet build macos --verbose --build-number=$BUILD_NUMBER --build-version=$BUILD_VERSION
       shell: pwsh
 
-    - name: Upload Windows Artifact
-      uses: actions/upload-artifact@v4.3.4
+    - name: Upload macOS Artifact
+      uses: actions/upload-artifact@v4.3.4  # https://github.com/marketplace/actions/upload-a-build-artifact
       with:
-        name: windows-build-artifact
-        path: build/windows
-        if-no-files-found: error
-        overwrite: true
+        name: macos-build-artifact  # the name of the artifact
+        path: build/macos  # location of Flet build output
+        if-no-files-found: error  # Fail the action with an error message if no files are found
+        overwrite: true  # If true, an artifact with a matching name will be deleted before a new one is uploaded. If false, the action will fail if an artifact for the given name already exists. Does not fail if the artifact does not exist.
