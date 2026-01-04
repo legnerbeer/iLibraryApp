@@ -8,7 +8,7 @@ on:
 jobs:
   build:
     name: Build for ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
+    runs-on: [self-hosted, "${{ matrix.os }}"]
     strategy:
       matrix:
         # We use windows-latest and macos-latest runners
