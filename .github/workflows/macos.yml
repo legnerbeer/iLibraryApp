@@ -105,12 +105,18 @@ jobs:
         pip install flet-cli==$FLET_CLI_VERSION
 
 
+    - name: Setup Flutter
+      uses: subosito/flutter-action@v2
+      with:
+        flutter-version: '3.38.5'
 
     - name: Flet Build macOS
-
       run: |
-
-        flet build macos --verbose --build-number=$BUILD_NUMBER --build-version=$BUILD_VERSION
+        flet build macos --no-input --verbose --build-number=$BUILD_NUMBER --build-version=$BUILD_VERSION
+#    - name: Flet Build macOS
+#
+#      run: |
+#        yes | flet build macos --verbose --build-number=$BUILD_NUMBER --build-version=$BUILD_VERSION
 
 
 
