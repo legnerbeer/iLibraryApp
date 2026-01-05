@@ -3,9 +3,6 @@ import json
 from pathlib import Path
 import asyncio
 import flet as ft
-import content.config as config
-from dotenv import load_dotenv, set_key
-from cryptography.fernet import Fernet
 from content.functions import load_decrypted_credentials, get_or_generate_key
 from iLibrary import Library
 
@@ -221,39 +218,20 @@ class AllLibraries(ft.Column):
 
 
 
-    # --------------------------------------------------------
-
-    async def _save_credentials_and_reload(self, driver, system, user, password):
-        credentials = {
-            "driver": driver.value,
-            "system": system.value,
-            "user": user.value,
-            "password": password.value,
-        }
-
-        self.encrypt_credentials(**credentials)
-        await self.async_init()
-
-    # --------------------------------------------------------
-
-    def encrypt_credentials(self, **credentials):
-        fernet = Fernet(self.ENCRYPTION_KEY_STR.encode())
-        token = fernet.encrypt(json.dumps(credentials).encode())
-
-        set_key(
-            dotenv_path=self.env_file_path,
-            key_to_set="ENCRYPTED_DB_CREDENTIALS",
-            value_to_set=token.decode(),
-        )
-
     async def _get_single_savefile(self, name: str):
         """Get the Single Savefile of a Library """
 
         def download_save_file(library_name: str, savefile_name: str, description: str, version: str, authority: str,
                                download_path: str):
-            try:
-                self.current_page.pop_dialog()
 
+
+            try:
+                credentials = load_decrypted_credentials(self.ENCRYPTION_KEY_STR, self.env_file_path)
+                self.DB_USER = credentials["user"]
+                self.DB_PASSWORD = credentials["password"]
+                self.DB_SYSTEM = credentials["system"]
+                self.DB_DRIVER = credentials["driver"]
+                self.current_page.pop_dialog()
                 with Library(self.DB_USER, self.DB_PASSWORD, self.DB_SYSTEM, self.DB_DRIVER) as lib:
                     try:
                         lib.saveLibrary(
@@ -267,7 +245,7 @@ class AllLibraries(ft.Column):
                             remSavf=True,
                             getZip=True
                         )
-                        self.current_page.run_task(ft.SharedPreferences().set_async, 'download_path', download_path)
+                        self.current_page.run_task(ft.SharedPreferences().set, 'download_path', download_path)
                     except Exception as e:
                         self.current_page.show_dialog(ft.SnackBar(
                             content=ft.Text(f"Failed: {e}", color=ft.Colors.WHITE),
@@ -283,6 +261,11 @@ class AllLibraries(ft.Column):
                     self.input_card.controls.clear()
                     self.input_card.controls.append(ft.Text(f"Connection Error: {e}"))
                     self.current_page.update()
+
+        self.DB_USER = None
+        self.DB_PASSWORD = None
+        self.DB_SYSTEM = None
+        self.DB_DRIVER = None
 
         # Ref fields for the download modal
         save_file_description_text_field_ref = ft.Ref[ft.TextField]()

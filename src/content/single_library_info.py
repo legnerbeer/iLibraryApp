@@ -289,7 +289,7 @@ class Info(ft.Column):
         def download_save_file(library_name: str, savefile_name: str, description: str, version: str, authority: str,
                                download_path: str):
             try:
-                self.current_page.close(self.download_modal)
+                self.current_page.pop_dialog()
 
                 with Library(self.DB_USER, self.DB_PASSWORD, self.DB_SYSTEM, self.DB_DRIVER) as lib:
                     try:
@@ -304,14 +304,14 @@ class Info(ft.Column):
                             remSavf=True,
                             getZip=True
                         )
-                        self.current_page.run_task(self.current_page.client_storage.set_async, 'download_path', download_path)
+                        self.current_page.run_task(ft.SharedPreferences().set, 'download_path', download_path)
                     except Exception as e:
-                        self.current_page.open(ft.SnackBar(
+                        self.current_page.show_dialog(ft.SnackBar(
                             content=ft.Text(f"Failed: {e}", color=ft.Colors.WHITE),
                             bgcolor=ft.Colors.RED_ACCENT_400))
                         return
 
-                    self.current_page.open(ft.SnackBar(
+                    self.current_page.show_dialog(ft.SnackBar(
                         content=ft.Text(f"Success, saved to: {download_path}", color=ft.Colors.WHITE),
                         bgcolor=ft.Colors.GREEN_ACCENT_400))
 
@@ -353,7 +353,7 @@ class Info(ft.Column):
                     label="Version",
                     value="*CURRENT",
                     border_color=ft.Colors.PRIMARY,
-                    helper_text="V7R1M0, V7R2M0, V7R3M0, V7R4M0, V7R5M0, V7R6M0 ..."
+                    helper="V7R1M0, V7R2M0, V7R3M0, V7R4M0, V7R5M0, V7R6M0 ..."
                 ),
                 ft.Container(height=5),
                 ft.TextField(
@@ -361,7 +361,7 @@ class Info(ft.Column):
                     label="Authority",
                     border_color=ft.Colors.PRIMARY,
                     value="*ALL",
-                    helper_text="*EXCLUDE, *ALL, *CHANGE, *LIBCRTAUT, *USE"
+                    helper="*EXCLUDE, *ALL, *CHANGE, *LIBCRTAUT, *USE"
                 ),
                 ft.Container(height=5),
                 ft.TextField(
@@ -376,7 +376,7 @@ class Info(ft.Column):
             actions=[
                 ft.TextButton("Close", on_click=lambda e: self.current_page.close(self.download_modal)),
                 ft.TextButton(
-                    text="Download",
+                    content="Download",
                     style=ft.ButtonStyle(
                         bgcolor=ft.Colors.PRIMARY,
                         color=ft.Colors.ON_PRIMARY),
@@ -392,4 +392,4 @@ class Info(ft.Column):
             actions_alignment=ft.MainAxisAlignment.END,
             on_dismiss=lambda e: print("Modal dialog dismissed!"),
         )
-        self.current_page.open(self.download_modal)
+        self.current_page.show_dialog(self.download_modal)
