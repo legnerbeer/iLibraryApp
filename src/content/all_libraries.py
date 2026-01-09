@@ -193,7 +193,7 @@ class AllLibraries(ft.Column):
                     ),
                     on_click=lambda e, name=item["OBJNAME"]: self.current_page.run_task(self._show_single_library_info, name),
                     is_three_line=True,
-                    subtitle=ft.Text(f"Description: {item["TEXT"]} \nCreated: {item['OBJCREATED']}"),
+                    subtitle=ft.Text(f"Description: {item['TEXT']} \nCreated: {item['OBJCREATED']}"),
                     bgcolor=ft.Colors.INVERSE_PRIMARY,
                 ),
                     border_radius=8,
