@@ -55,8 +55,8 @@ jobs:
 
     - name: Flet Build Windows
       run: |
-#        echo "y" | flet build windows --verbose --no-rich-output --build-number=$env:BUILD_NUMBER --build-version=$env:BUILD_VERSION
-        flet build windows --verbose --no-rich-output --build-number=$env:BUILD_NUMBER --build-version=$env:BUILD_VERSION
+        echo "y" | flet build windows --verbose --no-rich-output --build-number=$env:BUILD_NUMBER --build-version=$env:BUILD_VERSION
+
       shell: pwsh
 
     - name: Upload Windows Artifact
