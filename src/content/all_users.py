@@ -207,7 +207,7 @@ class AllUsers(ft.Column):
                     ),
                     on_click=lambda e, name=item["AUTHORIZATION_NAME"]: self.current_page.run_task(self._show_single_user_info, name),
                     is_three_line=True,
-                   subtitle=ft.Text(f"Description: {item["TEXT_DESCRIPTION"]} \nCreated: {item['CREATION_TIMESTAMP']}"),
+                   subtitle=ft.Text(f"Description: {item['TEXT_DESCRIPTION']} \nCreated: {item['CREATION_TIMESTAMP']}"),
                     bgcolor=ft.Colors.INVERSE_PRIMARY,
                 ),
                     border_radius=8,
