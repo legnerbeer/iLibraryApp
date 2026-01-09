@@ -25,6 +25,7 @@ class AllLibraries(ft.Column):
         self.DB_USER = None
         self.DB_PASSWORD = None
         self.DB_SYSTEM = None
+        self.DB_PORT = None
 
         self.list_container = ft.Column()
         self.input_card = self.list_container
@@ -231,6 +232,7 @@ class AllLibraries(ft.Column):
                 self.DB_PASSWORD = credentials["password"]
                 self.DB_SYSTEM = credentials["system"]
                 self.DB_DRIVER = credentials["driver"]
+                self.DB_PORT = credentials["port"]
                 self.current_page.pop_dialog()
                 with Library(self.DB_USER, self.DB_PASSWORD, self.DB_SYSTEM, self.DB_DRIVER) as lib:
                     try:
@@ -243,7 +245,8 @@ class AllLibraries(ft.Column):
                             authority=authority,
                             version=version,
                             remSavf=True,
-                            getZip=True
+                            getZip=True,
+                            port=self.DB_PORT
                         )
                         self.current_page.run_task(ft.SharedPreferences().set, 'download_path', download_path)
                     except Exception as e:
@@ -266,6 +269,7 @@ class AllLibraries(ft.Column):
         self.DB_PASSWORD = None
         self.DB_SYSTEM = None
         self.DB_DRIVER = None
+        self.DB_PORT = None
 
         # Ref fields for the download modal
         save_file_description_text_field_ref = ft.Ref[ft.TextField]()

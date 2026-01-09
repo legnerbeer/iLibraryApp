@@ -28,6 +28,7 @@ class Info(ft.Column):
         self.DB_USER = None
         self.DB_PASSWORD = None
         self.DB_SYSTEM = None
+        self.DB_PORT = None
 
         self.list_container = ft.Column()
         self.input_card = self.list_container
@@ -81,6 +82,7 @@ class Info(ft.Column):
                 self.DB_USER = self.db_credentials["user"]
                 self.DB_PASSWORD = self.db_credentials["password"]
                 self.DB_SYSTEM = self.db_credentials["system"]
+                self.DB_PORT = self.db_credentials["port"]
                 self.input_card.visible = True
                 self.list_container.visible = True
 
@@ -302,7 +304,8 @@ class Info(ft.Column):
                             authority=authority,
                             version=version,
                             remSavf=True,
-                            getZip=True
+                            getZip=True,
+                            port=self.DB_PORT
                         )
                         self.current_page.run_task(ft.SharedPreferences().set, 'download_path', download_path)
                     except Exception as e:

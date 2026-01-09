@@ -1,8 +1,7 @@
 from pathlib import Path
 import json
 import os
-import flet as ft
-from iLibrary import Library
+import socket
 import pyodbc
 from dotenv import load_dotenv, set_key
 from cryptography.fernet import Fernet
@@ -89,15 +88,23 @@ def get_or_generate_key(env_file_path: Path) -> str:
     else:
         return key
 
-def try_to_build_connection(db_driver:str, db_host:str, db_user:str, db_password:str) -> bool:
+def try_to_build_connection(db_driver:str, db_host:str, port:int, db_user:str, db_password:str) -> bool:
     try:
-        conn_str = (
-            f"DRIVER={db_driver};"
-            f"SYSTEM={db_host};"
-            f"UID={db_user};"
-            f"PWD={db_password};"
-        )
-        pyodbc.connect(conn_str, autocommit=True)
-        return True
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(2)
+        result = sock.connect_ex((db_host, port))
+        if result == 0:
+            conn_str = (
+                f"DRIVER={db_driver};"
+                f"SYSTEM={db_host};"
+                f"UID={db_user};"
+                f"PWD={db_password};"
+            )
+            pyodbc.connect(conn_str, autocommit=True)
+
+            return True
+        else:
+            return False
+
     except pyodbc.Error as ex:
         return False

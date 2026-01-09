@@ -85,10 +85,11 @@ class Settings(ft.Column):
         )
         self.current_page.update()
 
-    async def _save_credentials_and_reload(self, driver, system, user, password):
+    async def _save_credentials_and_reload(self, driver, system, port, user, password):
         credentials = {
             "driver": driver,
             "system": system,
+            "port": port,
             "user": user,
             "password": password,
         }
@@ -198,6 +199,11 @@ class Settings(ft.Column):
             label="IBMi Hostname",
             border_color=ft.Colors.PRIMARY,
         )
+        port = ft.TextField(
+            label="Port",
+            value="22",
+            border_color=ft.Colors.PRIMARY,
+        )
         user = ft.TextField(
             label="Username",
             border_color=ft.Colors.PRIMARY,
@@ -214,13 +220,15 @@ class Settings(ft.Column):
             user.value = self.db_credentials["user"]
             password.value = self.db_credentials["password"]
             system.value = self.db_credentials["system"]
+            port.value = self.db_credentials["port"]
 
         self.error_field = ft.Text("", visible=False, color=ft.Colors.RED)
 
         self.add_server_modal = ft.AlertDialog(
             modal=True,
+
             title=ft.Text("Database credentials"),
-            content=ft.Column([driver, system, user, password, self.error_field]),
+            content=ft.Column([driver, system, port, user, password, self.error_field]),
             actions=[
                 ft.TextButton("Cancel", on_click=lambda e: self.current_page.pop_dialog()),
                 ft.TextButton(
@@ -228,21 +236,23 @@ class Settings(ft.Column):
                     style=ft.ButtonStyle(color=ft.Colors.ON_PRIMARY, bgcolor=ft.Colors.PRIMARY),
                     on_click=lambda e: (
                         self.current_page.run_task(
-                            self._try_connection, driver.value,  system.value, user.value, password.value
+                            self._try_connection, driver.value,  system.value, int(port.value), user.value, password.value
 
                         ),
                     ),
                 ),
             ],
+
         )
-    async def _try_connection(self, driver:str, system:str, user:str, password:str):
+    async def _try_connection(self, driver:str, system:str, port:int, user:str, password:str):
         password = password
         user = user
         system = system
+        port:int = port
         driver = driver
 
-        if try_to_build_connection(driver, system, user, password):
-            await self._save_credentials_and_reload(driver, system, user, password)
+        if try_to_build_connection(driver, system, port, user, password):
+            await self._save_credentials_and_reload(driver, system,port, user, password)
             self.error_field.visible = False
             self.error_field.update()
             self.current_page.pop_dialog()

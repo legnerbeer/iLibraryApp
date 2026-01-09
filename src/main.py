@@ -119,7 +119,7 @@ async def run_sync(page: ft.Page, page_content: ft.Container):
                 page.show_dialog(error_banner)
 
         page.update()
-        await asyncio.sleep(10.0)
+        await asyncio.sleep(60.0)
 
 
 # --- Main Application Entry Point ---
