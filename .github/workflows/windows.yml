@@ -13,9 +13,6 @@ env:
   FLET_CLI_VERSION: "0.80.1"
   PYTHONUTF8: 1
   FLET_CLI_NO_RICH_OUTPUT: 1
-  # CL: /permissive fixes the C4596 error in window_manager
-  # /std:c++20 ensures modern features are available
-  CL: "/permissive /std:c++20"
 
 jobs:
   build:
@@ -42,9 +39,19 @@ jobs:
     - name: Flet Build Windows
       shell: powershell
       run: |
-        # Clean previous failed builds to prevent cache issues
+        # 1. Inject Global Compiler Flags
+        # These override the strict MSVC checks for older plugins (screen_retriever, share_plus)
+        $env:CL = "/permissive /std:c++20"
+        $env:_CL_ = "/permissive /std:c++20"
+
+        # 2. Deep Clean
+        # Removing these folders forces Flet to redownload/rebuild the C++ wrappers correctly
         if (Test-Path build) { Remove-Item -Recurse -Force build }
-        flet build windows --verbose --build-number ${{ env.BUILD_NUMBER }} --build-version ${{ env.BUILD_VERSION }}
+        if (Test-Path .dart_tool) { Remove-Item -Recurse -Force .dart_tool }
+        
+        # 3. Execute Build
+        # Piping 'y' handles any prompts regarding Flutter SDK updates
+        echo "y" | flet build windows --verbose --no-rich-output --build-number ${{ env.BUILD_NUMBER }} --build-version ${{ env.BUILD_VERSION }}
 
     - name: Upload Windows Artifact
       uses: actions/upload-artifact@v4
