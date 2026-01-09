@@ -16,6 +16,9 @@ env:
   FLET_CLI_VERSION: "0.80.1"
   PYTHONUTF8: 1
   FLET_CLI_NO_RICH_OUTPUT: 1
+  # Add these two lines to help the C++ compiler
+  CMAKE_ARGS: "-DCMAKE_CXX_STANDARD=20"
+  CL: "/std:c++20"
 
 jobs:
   build:
