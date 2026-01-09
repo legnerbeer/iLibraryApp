@@ -16,7 +16,6 @@ env:
   FLET_CLI_VERSION: "0.80.1"
   PYTHONUTF8: 1
   FLET_CLI_NO_RICH_OUTPUT: 1
-  UV_NO_PROGRESS: 1
 
 jobs:
   build:
@@ -32,7 +31,8 @@ jobs:
         python-version: ${{ env.PYTHON_VERSION }}
 
     - name: Install dependencies
-      shell: pwsh
+      # Changed from pwsh to powershell
+      shell: powershell
       run: |
         python -m pip install --upgrade pip
         pip install flet-cli==${{ env.FLET_CLI_VERSION }}
@@ -41,9 +41,8 @@ jobs:
         }
 
     - name: Flet Build Windows
-      shell: pwsh
+      shell: powershell
       run: |
-        # We use --verbose to see logs if it fails
         flet build windows --verbose --build-number ${{ env.BUILD_NUMBER }} --build-version ${{ env.BUILD_VERSION }}
 
     - name: Upload Windows Artifact
