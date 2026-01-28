@@ -15,7 +15,6 @@ from content.all_users import AllUsers
 from content.settings import Settings
 
 
-
 # --- Helper: Unified Navigation Content Manager ---
 async def clear_and_add_control(page_content: ft.Container, control):
     """Replaces the content of the main container and updates the UI."""
@@ -59,15 +58,18 @@ async def run_sync(page: ft.Page, page_content: ft.Container):
     page.overlay.append(error_banner)
     page.update()
 
+    # Periodically syncs library and user data; handles missing credentials
     while True:
         ENCRYPTION_KEY_STR = get_or_generate_key(env_file_path)
         load_dotenv(env_file_path, override=True)
         credentials_str = os.getenv("ENCRYPTED_DB_CREDENTIALS")
 
+
         if credentials_str:
             db_credentials = load_decrypted_credentials(ENCRYPTION_KEY_STR, env_file_path)
 
             if db_credentials:
+                await ft.SharedPreferences().set('server', str(db_credentials["system"]))
                 page.pop_dialog()
                 try:
                     with Library(db_credentials["user"], db_credentials["password"],
@@ -124,7 +126,7 @@ async def run_sync(page: ft.Page, page_content: ft.Container):
 
 # --- Main Application Entry Point ---
 async def main(page: ft.Page):
-    print("Starting iLibrary App...")
+
     # Setup Page Properties
     page.title = "iLibrary App"
     page.theme = ft.Theme(use_material3=True, color_scheme_seed="#00ffe5")

@@ -32,7 +32,7 @@ class Info(ft.Column):
 
         self.list_container = ft.Column()
         self.input_card = self.list_container
-        self._create_app_bar()
+        self.current_page.run_task(self._create_app_bar)
         self.progress_bar = ft.ProgressRing()
         self.progress_bar_container = ft.Container(self.progress_bar, alignment=ft.Alignment.CENTER)
         self.controls.append(self.progress_bar_container)
@@ -47,10 +47,16 @@ class Info(ft.Column):
         self.current_page.update()
         self.lib.conn.close()
 
-    def _create_app_bar(self):
+    async def _create_app_bar(self):
+        server = await ft.SharedPreferences().get(key='server')
         self.current_page.appbar = ft.AppBar(
             title=ft.Text(f"Library Info: {self.library}"),
-            leading=ft.IconButton(ft.Icons.ARROW_BACK, on_click=lambda e: self.current_page.run_task(self._go_back) )
+            leading=ft.IconButton(ft.Icons.ARROW_BACK, on_click=lambda e: self.current_page.run_task(self._go_back) ),
+            actions = [
+                # Reference the instance variable here
+                ft.Text(f"Server: {server}"),
+                ft.Container(width=60),
+            ]
         )
         self.current_page.update()
 
@@ -130,7 +136,12 @@ class Info(ft.Column):
                 library_info_data = safe_parse(result)
 
                 # --- UI CONSTRUCTION ---
-                result_text = ft.Column()
+                result_text = ft.DataTable(
+                    columns=[ft.DataColumn(label=ft.Text()),
+                            ft.DataColumn(label=ft.Text())],
+                    rows=[],
+                    width=1000,
+                    )
                 panel_list = ft.ExpansionPanelList(
                     expand_icon_color=ft.Colors.PRIMARY,
                     elevation=0,
@@ -153,15 +164,22 @@ class Info(ft.Column):
                             ))
                         continue
 
-                    content_column = ft.Column()
+                    content_column = ft.DataTable(
+                    columns=[ft.DataColumn(label=ft.Text()),
+                            ft.DataColumn(label=ft.Text())],
+                    rows=[],
+                    width=1000,
+                    )
                     for key, value in item.items():
                         if not value or value == "None" or key == "OBJNAME":
                             continue
-                        content_column.controls.append(
-                            ft.Row(controls=[
-                                ft.Text(key.replace("_", " ").title(), weight=ft.FontWeight.BOLD),
-                                ft.Text(str(value))
-                            ])
+                        content_column.rows.append(
+                            ft.DataRow(
+                                cells=[
+                                    ft.DataCell(ft.Text(f"{key.replace('_', ' ').title()}: ", weight=ft.FontWeight.BOLD, size=15)),
+                                    ft.DataCell(ft.Text(value=str(value))),
+                                ],
+                            ),
                         )
 
                     panel_list.controls.append(
@@ -187,18 +205,19 @@ class Info(ft.Column):
                             pass
 
                     if value is not None:
-                        result_text.controls.append(
-                            ft.Row(
-                                controls=[
-                                    ft.Text(f"{key.replace('_', ' ').title()}: ", weight=ft.FontWeight.BOLD, size=15),
-                                    ft.Text(value=str(value))
+                        result_text.rows.append(
+                            ft.DataRow(
+                                cells=[
+                                    ft.DataCell(ft.Text(f"{key.replace('_', ' ').title()}: ", weight=ft.FontWeight.BOLD,
+                                                        size=15)),
+                                    ft.DataCell(ft.Text(value=str(value))),
                                 ],
-                                spacing=1
-                            )
+                            ),
                         )
 
                 # --- ICON AND LAYOUT SECTION ---
                 img_icon = ft.Container(
+                    # Arranges icon and layout elements in a stack
                     content=ft.Stack(
                         controls=[
                             ft.Container(
@@ -330,6 +349,21 @@ class Info(ft.Column):
         save_file_authority_text_field_ref = ft.Ref[ft.TextField]()
         save_file_download_path_text_field_ref = ft.Ref[ft.TextField]()
         save_file_name_text_field_ref = ft.Ref[ft.TextField]()
+        save_file_download_path_text_field_ref.value = self.DOWNLOAD_PATH.as_posix()
+
+        async def handle_get_directory_path(e: ft.Event[ft.Button]):
+            download_path_field.value = await ft.FilePicker().get_directory_path()
+            print(f"Selected directory: {save_file_download_path_text_field_ref.value}")
+            download_path_field.update()
+
+
+        download_path_field =ft.TextField(
+                            ref=save_file_download_path_text_field_ref,
+                            value=save_file_download_path_text_field_ref.value,
+                            label="Download Path",
+                            border_color=ft.Colors.PRIMARY,
+                            on_click=lambda e: self.current_page.run_task(handle_get_directory_path, e),
+                        )
 
         # text fields for the download modal
 
@@ -367,17 +401,14 @@ class Info(ft.Column):
                     helper="*EXCLUDE, *ALL, *CHANGE, *LIBCRTAUT, *USE"
                 ),
                 ft.Container(height=5),
-                ft.TextField(
-                    ref=save_file_download_path_text_field_ref,
-                    label="Download Path",
-                    value=str(self.DOWNLOAD_PATH),
-                    border_color=ft.Colors.PRIMARY,
-                ),
+                download_path_field,
+
+
             ],
-                expand=False
+                expand=True
             ),
             actions=[
-                ft.TextButton("Close", on_click=lambda e: self.current_page.close(self.download_modal)),
+                ft.TextButton("Close", on_click=lambda e: self.current_page.pop_dialog()),
                 ft.TextButton(
                     content="Download",
                     style=ft.ButtonStyle(

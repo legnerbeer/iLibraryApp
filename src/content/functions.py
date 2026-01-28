@@ -5,6 +5,11 @@ import socket
 import pyodbc
 from dotenv import load_dotenv, set_key
 from cryptography.fernet import Fernet
+import tomllib
+import flet as ft
+from iLibrary import Library, User
+
+
 
 def load_decrypted_credentials(key: str, env_file_path: Path) -> dict | None:
     """
@@ -47,8 +52,78 @@ def load_decrypted_credentials(key: str, env_file_path: Path) -> dict | None:
         return credentials
 
     except Exception as e:
-        print(f"ERROR: Decryption failed. Key mismatch or data corruption. Details: {e}")
+        #print(f"ERROR: Decryption failed. Key mismatch or data corruption. Details: {e}")
         return None
+
+
+# --- Background Task: Sync and Banner Management ---
+async def run_query_after_settings(page, page_content):
+    env_file_path = Path(__file__).parent / ".env"
+
+
+
+    ENCRYPTION_KEY_STR = get_or_generate_key(env_file_path)
+    load_dotenv(env_file_path, override=True)
+    credentials_str = os.getenv("ENCRYPTED_DB_CREDENTIALS")
+
+
+    if credentials_str:
+        db_credentials = load_decrypted_credentials(ENCRYPTION_KEY_STR, env_file_path)
+
+        if db_credentials:
+            await ft.SharedPreferences().set('server', str(db_credentials["system"]))
+            page.pop_dialog()
+            try:
+                with Library(db_credentials["user"], db_credentials["password"],
+                             db_credentials["system"], db_credentials["driver"]) as lib:
+
+                    # 1. Ensure result is a valid string
+                    raw_result = lib.getAllLibraries()
+                    result_str = str(raw_result) if raw_result is not None else "[]"
+
+                    # Save the raw string
+                    await ft.SharedPreferences().set('all_libraries', str(result_str))
+
+                    # 2. Parse and validate the list
+                    data = json.loads(result_str)
+                    # Ensure every item is a string and handle missing keys
+                    lib_names = [str(item.get("OBJNAME", "")) for item in data if item.get("OBJNAME")]
+
+                    await ft.SharedPreferences().set('library_names', str(lib_names))
+                    #config.SERVER_STATUS = True
+
+            except Exception as e:
+                #config.SERVER_STATUS = False
+                print(f"Library Sync Error: {e}")
+
+                # --- Sync Users ---
+            try:
+                with User(db_credentials["user"], db_credentials["password"],
+                          db_credentials["system"], db_credentials["driver"]) as user:
+
+                    # 1. Fetch result
+                    raw_user_result = user.getAllUsers(wantJson=True)
+                    user_result_str = str(raw_user_result) if raw_user_result is not None else "[]"
+
+                    await ft.SharedPreferences().set('all_users', str(user_result_str))
+
+                    # 2. Parse and validate names
+                    user_data = json.loads(user_result_str)
+                    # Use .get() to prevent KeyErrors and str() to prevent type mismatches
+                    user_names = [str(item.get("AUTHORIZATION_NAME", "")) for item in user_data if
+                                  item.get("AUTHORIZATION_NAME")]
+
+                    await ft.SharedPreferences().set('user_names', str(user_names))
+
+            except Exception as e:
+                print(f"User Sync Error: {e}")
+    else:
+        # Show banner if credentials missing
+        if not error_banner.open:
+            page.show_dialog(error_banner)
+
+    page.update()
+
 
 def get_or_generate_key(env_file_path: Path) -> str:
     """
@@ -108,3 +183,11 @@ def try_to_build_connection(db_driver:str, db_host:str, port:int, db_user:str, d
 
     except pyodbc.Error as ex:
         return False
+
+def load_app_info():
+    try:
+        with open("pyproject.toml", "rb") as f:
+            data = tomllib.load(f)
+            return  data
+    except Exception as e:
+        print(e)

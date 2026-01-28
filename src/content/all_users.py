@@ -168,11 +168,11 @@ class AllUsers(ft.Column):
         """
         self.current_page.appbar = ft.AppBar(
             title=ft.Text("All Users"),
-            # actions=[
-            #     # Reference the instance variable here
-            #     ft.Container(content=ft.Text(value=None, badge=self.badge_server_status)),
-            #     ft.Container(width=60)
-            # ]
+            actions=[
+                # Reference the instance variable here
+                ft.Text(f"Server: {await ft.SharedPreferences().get('server')}"),
+                ft.Container(width=60),
+            ]
         )
         self.current_page.update()
 

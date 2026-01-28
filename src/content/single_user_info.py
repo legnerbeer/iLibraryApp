@@ -30,7 +30,7 @@ class SingleUserInfo(ft.Column):
 
         self.list_container = ft.Column()
         self.input_card = self.list_container
-        self._create_app_bar()
+        self.current_page.run_task(self._create_app_bar)
         self.progress_bar = ft.ProgressRing()
         self.progress_bar_container = ft.Container(self.progress_bar, alignment=ft.Alignment.CENTER)
         self.controls.append(self.progress_bar_container)
@@ -45,10 +45,16 @@ class SingleUserInfo(ft.Column):
         self.current_page.update()
         self.lib.conn.close()
 
-    def _create_app_bar(self):
+    async def _create_app_bar(self):
+        server = await ft.SharedPreferences().get(key='server')
         self.current_page.appbar = ft.AppBar(
             title=ft.Text(f"User Info: {self.user}"),
-            leading=ft.IconButton(ft.Icons.ARROW_BACK, on_click=lambda e: self.current_page.run_task(self._go_back) )
+            leading=ft.IconButton(ft.Icons.ARROW_BACK, on_click=lambda e: self.current_page.run_task(self._go_back) ),
+            actions=[
+                # Reference the instance variable here
+                ft.Text(f"Server: {server}"),
+                ft.Container(width=60),
+            ]
         )
         self.current_page.update()
 
@@ -126,7 +132,12 @@ class SingleUserInfo(ft.Column):
                #for key, value in data.items():
                 #
                 # # --- UI CONSTRUCTION ---
-                result_text = ft.Column()
+                result_text = ft.DataTable(
+                    columns=[ft.DataColumn(label=ft.Text()),
+                            ft.DataColumn(label=ft.Text())],
+                    rows=[],
+                    width=1000,
+                    )
                 panel_list = ft.ExpansionPanelList(
                     expand_icon_color=ft.Colors.PRIMARY,
                     elevation=0,
@@ -162,17 +173,15 @@ class SingleUserInfo(ft.Column):
                             pass
 
                     if value is not None:
-                        result_text.controls.append(
-                            ft.Row(
-                                controls=[
-                                    ft.Text(f"{key.replace('_', ' ').title()}: ", weight=ft.FontWeight.BOLD, size=15),
-                                    ft.Text(value=str(value))
+                        result_text.rows.append(
+                            ft.DataRow(
+                                cells=[
+                                    ft.DataCell(ft.Text(f"{key.replace('_', ' ').title()}: ", weight=ft.FontWeight.BOLD, size=15)),
+                                    ft.DataCell(ft.Text(value=str(value))),
                                 ],
-                                spacing=1
-                            )
+                            ),
                         )
 
-                # # --- ICON AND LAYOUT SECTION ---
 
                 # -- Set User Class Name and Status Color--
                 user_status = data["STATUS"]
@@ -252,6 +261,10 @@ class SingleUserInfo(ft.Column):
                             ft.Row(
                                 [
                                     ft.Container(
+                                        padding=ft.Padding.only(top=30),
+                                        content=None,
+                                    ),
+                                    ft.Container(
                                         width=130, height=130,
                                         bgcolor="#00ffe5",
                                         shape=ft.BoxShape.CIRCLE,
@@ -259,6 +272,14 @@ class SingleUserInfo(ft.Column):
                                         shadow=ft.BoxShadow(blur_radius=8, color="#00ffe5"),
                                         content=ft.Text(self.user[0:2].upper(), color="black",
                                                         weight=ft.FontWeight.BOLD, size=40),
+                                    ),
+                                    ft.Container(
+                                        padding=ft.Padding.only(top=30),
+                                        content=ft.IconButton(
+                                            bgcolor="#00ffe5", icon_color="black", icon=ft.Icons.OUTGOING_MAIL,
+                                            on_click=lambda e: self.current_page.run_task(self._send_message_to_user),
+                                            tooltip="Send Message"
+                                        ),
                                     )
                                 ],
                                 alignment=ft.MainAxisAlignment.SPACE_AROUND,
@@ -293,106 +314,45 @@ class SingleUserInfo(ft.Column):
             self.progress_bar_container.visible = False
             self.update()
 
-    async def _get_single_savefile(self, name: str):
-        """Get the Single Savefile of a user """
+    async def _send_message_to_user(self):
+        def send_msg(e):
+            if message_textfield.value == '' or message_textfield.value is None:
+                message_textfield.helper = "Please enter a message"
+                self.current_page.update()
+                return
+            with User(self.DB_USER, self.DB_PASSWORD, self.DB_SYSTEM, self.DB_DRIVER) as msg:
+                data:str = msg.send_message_to_user(username=str(self.user) , message=message_textfield.value)
+                get_data = json.loads(data)
+                if get_data.get("success"):
+                    msg_feedback = ft.Text(f"Message sent successfully to {self.user}")
+                    snack_bg_color = ft.Colors.GREEN_ACCENT_400
 
-        def download_save_file(user_name: str, savefile_name: str, description: str, version: str, authority: str,
-                               download_path: str):
-            try:
+                if get_data.get("error"):
+                    msg_feedback = ft.Text(f"Message sent was not successfully to {self.user}")
+                    snack_bg_color = ft.Colors.RED_ACCENT_400
                 self.current_page.pop_dialog()
+                self.current_page.show_dialog(ft.SnackBar(content=msg_feedback, bgcolor=snack_bg_color))
 
-                with User(self.DB_USER, self.DB_PASSWORD, self.DB_SYSTEM, self.DB_DRIVER) as user:
-                    try:
-                        user.getSingleUserInformation(
-                            username=user_name,
-                            wantJson=True,
-                        )
-                        self.current_page.run_task(ft.SharedPreferences().set, 'download_path', download_path)
-                    except Exception as e:
-                        self.current_page.show_dialog(ft.SnackBar(
-                            content=ft.Text(f"Failed: {e}", color=ft.Colors.WHITE),
-                            bgcolor=ft.Colors.RED_ACCENT_400))
-                        return
 
-                    self.current_page.show_dialog(ft.SnackBar(
-                        content=ft.Text(f"Success, saved to: {download_path}", color=ft.Colors.WHITE),
-                        bgcolor=ft.Colors.GREEN_ACCENT_400))
-
-            except Exception as e:
-                if hasattr(self, "input_card"):
-                    self.input_card.controls.clear()
-                    self.input_card.controls.append(ft.Text(f"Connection Error: {e}"))
-                    self.current_page.update()
-
-        # Ref fields for the download modal
-        save_file_description_text_field_ref = ft.Ref[ft.TextField]()
-        save_file_version_text_field_ref = ft.Ref[ft.TextField]()
-        save_file_authority_text_field_ref = ft.Ref[ft.TextField]()
-        save_file_download_path_text_field_ref = ft.Ref[ft.TextField]()
-        save_file_name_text_field_ref = ft.Ref[ft.TextField]()
-
-        # text fields for the download modal
-
-        self.download_modal = ft.AlertDialog(
-            modal=True,
-            title=ft.Text(f"Create Savefile from user: {name}"),
-            content=ft.Column([
-                ft.TextField(
-                    ref=save_file_name_text_field_ref,
-                    label="Savefile name",
-                    value=name,
-                    border_color=ft.Colors.PRIMARY,
-                ),
-                ft.Container(height=5),
-                ft.TextField(
-                    ref=save_file_description_text_field_ref,
-                    label="Description",
-                    value="Saved by iuser",
-                    border_color=ft.Colors.PRIMARY,
-                ),
-                ft.Container(height=5),
-                ft.TextField(
-                    ref=save_file_version_text_field_ref,
-                    label="Version",
-                    value="*CURRENT",
-                    border_color=ft.Colors.PRIMARY,
-                    helper="V7R1M0, V7R2M0, V7R3M0, V7R4M0, V7R5M0, V7R6M0 ..."
-                ),
-                ft.Container(height=5),
-                ft.TextField(
-                    ref=save_file_authority_text_field_ref,
-                    label="Authority",
-                    border_color=ft.Colors.PRIMARY,
-                    value="*ALL",
-                    helper="*EXCLUDE, *ALL, *CHANGE, *userCRTAUT, *USE"
-                ),
-                ft.Container(height=5),
-                ft.TextField(
-                    ref=save_file_download_path_text_field_ref,
-                    label="Download Path",
-                    # value=str(self.DOWNLOAD_PATH),
-                    border_color=ft.Colors.PRIMARY,
-                ),
-            ],
-                expand=False
-            ),
-            actions=[
-                ft.TextButton("Close", on_click=lambda e: self.current_page.close(self.download_modal)),
-                ft.TextButton(
-                    # text="Download",
-                    style=ft.ButtonStyle(
-                        bgcolor=ft.Colors.PRIMARY,
-                        color=ft.Colors.ON_PRIMARY),
-                    on_click=lambda e: download_save_file(
-                        user_name=name,
-                        savefile_name=save_file_name_text_field_ref.current.value,
-                        description=save_file_description_text_field_ref.current.value,
-                        version=save_file_version_text_field_ref.current.value,
-                        authority=save_file_authority_text_field_ref.current.value,
-                        download_path=save_file_download_path_text_field_ref.current.value
-                    ), )
-            ],
-            actions_alignment=ft.MainAxisAlignment.END,
-            on_dismiss=lambda e: print("Modal dialog dismissed!"),
+        message_textfield = ft.TextField(
+            label="Type your message here:",
+            autofocus=True,
+            border_color=ft.Colors.PRIMARY,
+            multiline=True,
+            on_submit=send_msg,
+            shift_enter=True,
+            min_lines=1,
+            max_lines=10,
+            max_length=512,
         )
-        self.current_page.show_dialog(self.download_modal)
+        send_button = ft.TextButton(
+            content=ft.Text("Send", color=ft.Colors.ON_PRIMARY),
+            style=ft.ButtonStyle(bgcolor=ft.Colors.PRIMARY),
+            on_click = lambda e: send_msg(e),
+        )
+        message_dialog = ft.AlertDialog(
+            title=ft.Text(f"Send Message to User: {self.user}"),
+            content=message_textfield,
+            actions=[ft.TextButton("Cancel", on_click=lambda e: self.current_page.pop_dialog()), send_button],
+        )
+        self.current_page.show_dialog(message_dialog)

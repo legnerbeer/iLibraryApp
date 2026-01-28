@@ -2,10 +2,12 @@ import os
 
 import flet as ft
 from pathlib import Path
-from content.functions import load_decrypted_credentials, get_or_generate_key, try_to_build_connection
+from content.functions import load_decrypted_credentials, get_or_generate_key, try_to_build_connection, load_app_info, run_query_after_settings
 import json
 from dotenv import load_dotenv, set_key
 from cryptography.fernet import Fernet
+from flet import control
+from typing_extensions import overload
 
 
 class Settings(ft.Column):
@@ -61,6 +63,15 @@ class Settings(ft.Column):
             ),
             ft.Container(ft.ListTile(
                 leading=None,
+                title=ft.Text("iLibrary App Info"),
+                on_click=lambda e: self.current_page.run_task(self._about_app),
+                is_three_line=True,
+                bgcolor=ft.Colors.INVERSE_PRIMARY,
+            ),
+                border_radius=8,
+            ),
+            ft.Container(ft.ListTile(
+                leading=None,
                 title=ft.Text("Clear iLibrary App"),
                 on_click=lambda e: self.current_page.show_dialog(self.clear_app_data_modal),
                 is_three_line=True,
@@ -107,6 +118,7 @@ class Settings(ft.Column):
         )
 
     async def _load_modals (self):
+
         self.clear_app_data_modal = ft.AlertDialog(
             modal=True,
             title=ft.Text("Clearing iLibrary", color=ft.Colors.RED),
@@ -126,42 +138,42 @@ class Settings(ft.Column):
             modal=True,
             title=ft.Text("Switching Thema"),
             content=ft.RadioGroup(
-            content=ft.Column(
-                [
-                    ft.ListTile(
-                    ft.Row(
-                        [
-                            ft.Container(content=ft.Text("System"), padding=ft.Padding.only(left=15)),
-                            ft.Radio(value="system"),
-                        ],
-                        alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
-                    ),
-                    toggle_inputs=True,),
-                    ft.ListTile(
-                    ft.Row(
-                        [
-                            ft.Container(content=ft.Text("Light"), padding=ft.Padding.only(left=15)),
-                            ft.Radio(value="light"),
-                        ],
-                        alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
-                    ),
-                    toggle_inputs=True,),
-                    ft.ListTile(
-                    ft.Row(
-                        [
-                            ft.Container(content=ft.Text("Dark"), padding=ft.Padding.only(left=15)),
-                            ft.Radio(value="dark"),
-                        ],
-                        alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
-                    ),
-                    toggle_inputs=True,),
+                content=ft.Column(
+                    [
+                        ft.ListTile(
+                            ft.Row(
+                                [
+                                    ft.Container(content=ft.Text("System"), padding=ft.Padding.only(left=15)),
+                                    ft.Radio(value="system"),
+                                ],
+                                alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                            ),
+                            toggle_inputs=True,),
+                        ft.ListTile(
+                            ft.Row(
+                                [
+                                    ft.Container(content=ft.Text("Light"), padding=ft.Padding.only(left=15)),
+                                    ft.Radio(value="light"),
+                                ],
+                                alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                            ),
+                            toggle_inputs=True,),
+                        ft.ListTile(
+                            ft.Row(
+                                [
+                                    ft.Container(content=ft.Text("Dark"), padding=ft.Padding.only(left=15)),
+                                    ft.Radio(value="dark"),
+                                ],
+                                alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                            ),
+                            toggle_inputs=True,),
 
-                ],
+                    ],
 
-            ),
+                ),
 
                 on_change=self._handle_theme_mode,
-        ),
+            ),
             actions=[
                 ft.TextButton("Cancel", on_click=lambda e: self.current_page.pop_dialog()),
                 ft.TextButton(
@@ -199,11 +211,41 @@ class Settings(ft.Column):
             label="IBMi Hostname",
             border_color=ft.Colors.PRIMARY,
         )
+
+        def check_port(e: ft.Event[ft.TextField]):
+            """
+                check the port number entered by the user, from the IBMi Server Connection Modal
+            """
+
+            if not e.control.value.isdigit():
+                return
+            if not e.control.value:
+                value:int = 0
+            else:
+                value:int = int(e.control.value)
+
+            if 0 < value <= 65535:
+                port.helper = None
+                port.border_color = ft.Colors.PRIMARY
+                port.label_style = ft.TextStyle(color=ft.Colors.PRIMARY)
+                self.current_page.update()
+                return
+
+            port.helper = ft.Text(f"Port must be between 0 and 65535", color=ft.Colors.RED)
+            port.label_style = ft.TextStyle(color=ft.Colors.RED)
+            port.border_color = ft.Colors.RED
+            self.current_page.update()
+
+
         port = ft.TextField(
             label="Port",
             value="22",
+            input_filter = ft.InputFilter(allow=True, regex_string=r"^[0-9]*$", replacement_string=""),
+            on_change=check_port,  # Pass the function name only
+            keyboard_type=ft.KeyboardType.NUMBER,
             border_color=ft.Colors.PRIMARY,
         )
+
         user = ft.TextField(
             label="Username",
             border_color=ft.Colors.PRIMARY,
@@ -253,6 +295,7 @@ class Settings(ft.Column):
 
         if try_to_build_connection(driver, system, port, user, password):
             await self._save_credentials_and_reload(driver, system,port, user, password)
+            await run_query_after_settings(self.current_page, self.content_manager)
             self.error_field.visible = False
             self.error_field.update()
             self.current_page.pop_dialog()
@@ -286,10 +329,55 @@ class Settings(ft.Column):
         self.current_page.update()
 
     async def _clear_app_data(self, e):
+        """Clears persistent data then closes application window"""
         await ft.SharedPreferences().clear()
         self.clear_app_data_modal.open = False
         if os.path.isfile(self.env_file_path):
             os.remove(self.env_file_path)
         await self.current_page.window.close()
         self.current_page.update()
+
+    async def _about_app(self):
+        data = load_app_info()
+        self.current_page.show_dialog(
+            ft.AlertDialog(
+                modal=True,
+                title=ft.Text("About iLibrary"),
+                content=ft.Column(
+                    controls=[
+                        ft.Row(
+                            controls=[
+                                ft.Text("App Name: ", size=15, weight=ft.FontWeight.BOLD),
+                                ft.Text(data["project"]["name"]),
+                        ]),
+                        ft.Row(
+                            controls=[
+                                ft.Text("Version: ", size=15, weight=ft.FontWeight.BOLD),
+                                ft.Text(data["project"]["version"]),
+                            ]),
+                        ft.Row(
+                            controls=[
+                                ft.Text("Author: ", size=15, weight=ft.FontWeight.BOLD),
+                                ft.Text(data["project"]["authors"][0]["name"]),
+                            ]),
+                        ft.Row(
+                            controls=[
+                                ft.Text("Email: ", size=15, weight=ft.FontWeight.BOLD),
+                                ft.Text(data["project"]["authors"][0]["email"]),
+                            ]),
+                        ft.Row(
+                            spacing=10,
+                            controls=[
+                            ]),
+                        ft.Row(
+                            controls=[
+                                ft.Text(data["tool"]["flet"]["copyright"]),
+                            ]),
+                    ],
+
+                )
+                ,
+                actions=[ft.TextButton("Close", on_click=lambda e: self.current_page.pop_dialog())],
+            )
+        )
 

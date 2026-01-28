@@ -1,7 +1,5 @@
-import os
 import json
 from pathlib import Path
-import asyncio
 import flet as ft
 from content.functions import load_decrypted_credentials, get_or_generate_key
 from iLibrary import Library
@@ -9,6 +7,7 @@ from iLibrary import Library
 
 class AllLibraries(ft.Column):
     def __init__(self, page: ft.Page, content_manager):
+        """Initializes libraries UI; starts asynchronous credential loading"""
         super().__init__(
             scroll=ft.ScrollMode.ADAPTIVE,
             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
@@ -49,9 +48,8 @@ class AllLibraries(ft.Column):
 
     async def load_library_names(self):
         # # 1. Get the data from SharedPreferences
-        # raw_data = await ft.SharedPreferences().get(key='library_names')
         raw_data = await ft.SharedPreferences().get(key='library_names')
-
+    #        self.page.run_task(run_sync, page, page_content)
         try:
             if isinstance(raw_data, list):
                 # If it's a list of one string that looks like a list: ["['A', 'B']"]
@@ -148,12 +146,17 @@ class AllLibraries(ft.Column):
             Creating the App Bar
         """
         self.current_page.appbar = ft.AppBar(
-            title=ft.Text("All Libraries"),
-            # actions=[
-            #     # Reference the instance variable here
-            #     ft.Container(content=ft.Text(value=None, badge=self.badge_server_status)),
-            #     ft.Container(width=60)
-            # ]
+            title=ft.Column(
+                controls=[
+                    ft.Text("All Libraries"),
+
+                ],
+            alignment=ft.MainAxisAlignment.SPACE_AROUND),
+            actions=[
+                # Reference the instance variable here
+                ft.Text(f"Server: {await ft.SharedPreferences().get('server')}"),
+                ft.Container(width=60),
+            ]
         )
         self.current_page.update()
 

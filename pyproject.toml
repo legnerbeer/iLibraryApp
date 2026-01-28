@@ -1,16 +1,16 @@
 [project]
-name = "ilibrary"
-version = "0.0.1"
-description = ""
+name = "iLlibrary"
+version = "0.0.2"
+description = "Streamline IBM i tool with automated Save File management and instant user profile insights."
 readme = "README.md"
 requires-python = ">=3.9"
 authors = [
     { name = "Andreas Legner", email = "ilibrary@legner.beer" }
 ]
 dependencies = [
-    "flet==0.80.1",
+    "flet==0.80.4",
     "dotenv",
-    "iLibrary==0.0.13",
+    "iLibrary==0.0.14",
     "paramiko",
     "pyodbc==5.3.0",
     "certifi"
@@ -37,9 +37,9 @@ copyright = "Copyright (C) 2025 by legner.beer"
 path = "src"
 [tool.uv]
 dev-dependencies = [
-    "flet[all]==0.80.1",
+    "flet[all]==0.80.4",
     "dotenv",
-    "iLibrary==0.0.13",
+    "iLibrary==0.0.14",
     "paramiko",
     "pyodbc==5.3.0",
     "certifi"
@@ -50,7 +50,7 @@ dev-dependencies = [
 package-mode = false
 
 [tool.poetry.group.dev.dependencies]
-flet = {extras = ["all"], version = "0.80.1"}
+flet = {extras = ["all"], version = "0.80.4"}
 
 [tool.flet.macos]
 entitlements = { "com.apple.security.network.client" = true }
