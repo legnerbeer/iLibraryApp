@@ -200,7 +200,7 @@ class SingleUserInfo(ft.Column):
                     case "*SECOFR":
                         user_class_name_color = ft.Colors.INDIGO
                     case "*SYSOPR":
-                        user_class_name_color = ft.Colors.RED
+                        user_class_name_color = ft.Colors.RED_ACCENT_400
 
                 user_badge = ft.Row(
                     alignment=ft.MainAxisAlignment.CENTER,
