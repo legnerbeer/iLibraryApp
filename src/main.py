@@ -168,7 +168,7 @@ async def main(page: ft.Page):
                     ft.TextButton(
                         content="Yes",
                         on_click=lambda _: page.run_task(page.window.close),
-                        style=ft.ButtonStyle(bgcolor=ft.Colors.RED)
+                        style=ft.ButtonStyle(bgcolor=ft.Colors.RED_ACCENT_400, color=ft.Colors.WHITE)
                     )
                 ]
             )
