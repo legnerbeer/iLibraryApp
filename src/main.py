@@ -129,6 +129,7 @@ async def main(page: ft.Page):
 
     # Setup Page Properties
     page.title = "iLibrary App"
+
     page.theme = ft.Theme(use_material3=True, color_scheme_seed="#00ffe5")
 
     # Load Theme Mode from storage
@@ -212,7 +213,7 @@ async def main(page: ft.Page):
     )
 
     # Start Background Sync Task
-    page.run_task(run_sync, page, page_content)
+    #page.run_task(run_sync, page, page_content)
 
     # Load Default View (Libraries)
     await navigation_bar_changed(types.SimpleNamespace(control=rail))

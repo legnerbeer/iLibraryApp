@@ -1,9 +1,8 @@
+from datetime import datetime
 import os
 import json
 from pathlib import Path
-import asyncio
 import flet as ft
-import content.config as config
 from dotenv import load_dotenv, set_key
 from cryptography.fernet import Fernet
 from content.functions import load_decrypted_credentials, get_or_generate_key
@@ -145,23 +144,6 @@ class AllUsers(ft.Column):
 
         self.update()
 
-    async def _load_server_status(self):
-        # Initialize the badge once
-        self.badge_server_status = ft.Badge()
-
-        while True:
-            if not config.SERVER_STATUS:
-                self.badge_server_status.text = 'Offline'
-                self.badge_server_status.bgcolor = ft.Colors.ERROR
-            else:
-                self.badge_server_status.text = 'Online'
-                self.badge_server_status.bgcolor = ft.Colors.GREEN_ACCENT_400
-
-            # In Flet, you must update the page to see changes
-            self.update()
-            self.current_page.update()
-            await asyncio.sleep(10.0)
-
     async def _create_app_bar(self):
         """
             Creating the App Bar
@@ -187,6 +169,14 @@ class AllUsers(ft.Column):
 
             for item in data:
                 new_user_image: str = item["AUTHORIZATION_NAME"]
+                # formated_time = datetime.datetime(item['CREATION_TIMESTAMP'])
+                timestamp_str = item['CREATION_TIMESTAMP']
+
+                # 2. Parse the string (must match the input format exactly)
+                dt_object = datetime.strptime(timestamp_str, "%Y-%m-%dT%H:%M:%S")
+
+                # 3. Format into a new string
+                formatted_str = dt_object.strftime("%A, %b %d, %Y")
 
                 new_user_tile = ft.Container(ft.ListTile(
                     leading=ft.CircleAvatar(
@@ -199,15 +189,27 @@ class AllUsers(ft.Column):
                         icon=ft.Icons.MORE_VERT,
                         items=[
                             ft.PopupMenuItem(
-                                "Show Details",
+                                content=ft.Row(
+                                    controls=[
+                                        ft.Icon(ft.Icons.INFO_OUTLINE),
+                                        ft.Text("Show Details"),]
+                                ),
                                 on_click=lambda e, name=item["AUTHORIZATION_NAME"]: self.current_page.run_task(
                                     self._show_single_user_info, name)
+                            ),
+                            ft.PopupMenuItem(
+                                content=ft.Row(
+                                    controls=[
+                                        ft.Icon(ft.Icons.OUTGOING_MAIL),
+                                        ft.Text("Send Message"), ]
+                                ),
+                                on_click=lambda e, name=item["AUTHORIZATION_NAME"]: self.current_page.run_task(self._send_message_to_user, name)
                             ),
                         ],
                     ),
                     on_click=lambda e, name=item["AUTHORIZATION_NAME"]: self.current_page.run_task(self._show_single_user_info, name),
                     is_three_line=True,
-                   subtitle=ft.Text(f"Description: {item['TEXT_DESCRIPTION']} \nCreated: {item['CREATION_TIMESTAMP']}"),
+                   subtitle=ft.Text(f"Description: {item['TEXT_DESCRIPTION']} \nCreated: {formatted_str}"),
                     bgcolor=ft.Colors.INVERSE_PRIMARY,
                 ),
                     border_radius=8,
@@ -257,3 +259,46 @@ class AllUsers(ft.Column):
             value_to_set=token.decode(),
         )
 
+
+    async def _send_message_to_user(self, username):
+        def send_msg(e):
+            if message_textfield.value == '' or message_textfield.value is None:
+                message_textfield.helper = "Please enter a message"
+                self.current_page.update()
+                return
+            with User(self.DB_USER, self.DB_PASSWORD, self.DB_SYSTEM, self.DB_DRIVER) as msg:
+                data:str = msg.send_message_to_user(username=str(username) , message=message_textfield.value)
+                get_data = json.loads(data)
+                if get_data.get("success"):
+                    msg_feedback = ft.Text(f"Message sent successfully to {username}")
+                    snack_bg_color = ft.Colors.GREEN_ACCENT_400
+
+                if get_data.get("error"):
+                    msg_feedback = ft.Text(f"Message sent was not successfully to {username}")
+                    snack_bg_color = ft.Colors.RED_ACCENT_400
+                self.current_page.pop_dialog()
+                self.current_page.show_dialog(ft.SnackBar(content=msg_feedback, bgcolor=snack_bg_color))
+
+
+        message_textfield = ft.TextField(
+            label="Type your message here:",
+            autofocus=True,
+            border_color=ft.Colors.PRIMARY,
+            multiline=True,
+            on_submit=send_msg,
+            shift_enter=True,
+            min_lines=1,
+            max_lines=10,
+            max_length=512,
+        )
+        send_button = ft.TextButton(
+            content=ft.Text("Send", color=ft.Colors.ON_PRIMARY),
+            style=ft.ButtonStyle(bgcolor=ft.Colors.PRIMARY),
+            on_click = lambda e: send_msg(e),
+        )
+        message_dialog = ft.AlertDialog(
+            title=ft.Text(f"Send Message to User: {username}"),
+            content=message_textfield,
+            actions=[ft.TextButton("Cancel", on_click=lambda e: self.current_page.pop_dialog()), send_button],
+        )
+        self.current_page.show_dialog(message_dialog)

@@ -3,6 +3,7 @@ from pathlib import Path
 import flet as ft
 from content.functions import load_decrypted_credentials, get_or_generate_key
 from iLibrary import Library
+import ast
 
 
 class AllLibraries(ft.Column):
@@ -48,30 +49,29 @@ class AllLibraries(ft.Column):
 
     async def load_library_names(self):
         # # 1. Get the data from SharedPreferences
+
+        print("Loading Library Names...")
         raw_data = await ft.SharedPreferences().get(key='library_names')
-    #        self.page.run_task(run_sync, page, page_content)
+
+
+
+            # 2. High-Speed Parsing
         try:
-            if isinstance(raw_data, list):
-                # If it's a list of one string that looks like a list: ["['A', 'B']"]
-                if len(raw_data) == 1 and isinstance(raw_data[0], str) and raw_data[0].startswith("["):
-                    # Clean the string and parse it properly
-                    # We replace single quotes with double quotes for valid JSON
-                    valid_json_string = raw_data[0].replace("'", '"')
-                    self.library_list = json.loads(valid_json_string)
-                else:
-                    self.library_list = raw_data
-            elif isinstance(raw_data, str):
-                # If it's just the string: "['A', 'B']"
-                valid_json_string = raw_data.replace("'", '"')
-                self.library_list = json.loads(valid_json_string)
+            if raw_data:
+                # ast.literal_eval is faster/safer for Python-style string lists
+                parsed_data = ast.literal_eval(raw_data)
+
+                # If it's a nested list like ["['A', 'B']"], flatten it immediately
+                if isinstance(parsed_data, list) and len(parsed_data) == 1 and isinstance(parsed_data[0], str):
+                    parsed_data = ast.literal_eval(parsed_data[0])
+
+                self.library_list = [str(u).strip() for u in parsed_data]
             else:
                 self.library_list = []
-        except Exception as e:
-            print(f"Error parsing user_names: {e}")
+        except (ValueError, SyntaxError) as e:
+            print(f"Fast parse failed, falling back to JSON: {e}")
+            # Minimal fallback
             self.library_list = []
-
-        # Clean up any extra whitespace or quotes left over
-        self.library_list = [str(u).strip() for u in self.library_list]
 
     def handle_change(self, e):
         # 3. Get the search query
@@ -140,6 +140,12 @@ class AllLibraries(ft.Column):
             pass
 
         self.update()
+        # 1. Faster Task Initiation: Check a flag first to avoid redundant imports/tasks
+        if not getattr(self.page, "sync_started", False):
+            page_content = ft.Container(expand=True)
+            from main import run_sync
+            self.page.run_task(run_sync, self.current_page, page_content)
+            self.page.sync_started = True
 
     async def _create_app_bar(self):
         """

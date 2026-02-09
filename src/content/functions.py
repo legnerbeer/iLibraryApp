@@ -191,3 +191,4 @@ def load_app_info():
             return  data
     except Exception as e:
         print(e)
+
