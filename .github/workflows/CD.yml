@@ -30,7 +30,13 @@ jobs:
 
       - name: Build iLibrary app
         run: |
-          flet build
+           if [[ "$RUNNER_OS" == "Linux" ]]; then
+            flet build linux
+          elif [[ "$RUNNER_OS" == "Windows" ]]; then
+            flet build windows
+          elif [[ "$RUNNER_OS" == "macOS" ]]; then
+            flet build macos
+          fi
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
