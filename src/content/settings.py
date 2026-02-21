@@ -334,6 +334,8 @@ class Settings(ft.Column):
         self.clear_app_data_modal.open = False
         if os.path.isfile(self.env_file_path):
             os.remove(self.env_file_path)
+        if os.path.exists(Path(__file__).parent.parent / ".auth"/ "libraries_metadata.db"):
+            os.remove(Path(__file__).parent.parent / ".auth"/ "libraries_metadata.db")
         await self.current_page.window.close()
         self.current_page.update()
 
