@@ -1,3 +1,4 @@
+import sqlite3
 from datetime import datetime
 import os
 import json
@@ -28,6 +29,9 @@ class AllUsers(ft.Column):
         self.DB_PASSWORD = None
         self.DB_SYSTEM = None
 
+        self.path_to_DB = Path(__file__).parent.parent / ".auth"
+        self.path_to_DB_file = self.path_to_DB / "libraries_metadata.db"
+
         self.list_container = ft.Column()
         self.input_card = self.list_container
         self.progress_bar = ft.ProgressRing()
@@ -44,37 +48,11 @@ class AllUsers(ft.Column):
 
     # --------------------------------------------------------
 
-    async def load_user_names(self):
-        raw_data = await ft.SharedPreferences().get(key='user_names')
-
-        try:
-            if isinstance(raw_data, list):
-                # If it's a list of one string that looks like a list: ["['A', 'B']"]
-                if len(raw_data) == 1 and isinstance(raw_data[0], str) and raw_data[0].startswith("["):
-                    # Clean the string and parse it properly
-                    # We replace single quotes with double quotes for valid JSON
-                    valid_json_string = raw_data[0].replace("'", '"')
-                    self.user_list = json.loads(valid_json_string)
-                else:
-                    self.user_list = raw_data
-            elif isinstance(raw_data, str):
-                # If it's just the string: "['A', 'B']"
-                valid_json_string = raw_data.replace("'", '"')
-                self.user_list = json.loads(valid_json_string)
-            else:
-                self.user_list = []
-        except Exception as e:
-            print(f"Error parsing user_names: {e}")
-            self.user_list = []
-
-        # Clean up any extra whitespace or quotes left over
-        self.user_list = [str(u).strip() for u in self.user_list]
-
 
     async def async_init(self):
         #self.current_page.run_task(self._load_server_status)
         await self._create_app_bar()
-        await self.load_user_names()
+
 
         def open_searchbar(e):
             self.current_page.run_task(self.searchbar.open_view)
@@ -84,14 +62,16 @@ class AllUsers(ft.Column):
             query = e.data.upper()
 
             # 3. Defensive check: ensure user is treated as a string during filter
-            list_to_show = [user for user in self.user_list if query in str(user).upper()]
-            print(list_to_show)
+            DBConnect = sqlite3.connect(self.path_to_DB_file)
+            cursor = DBConnect.cursor()
+            data_lib = cursor.execute("SELECT AUTHORIZATION_NAME FROM USER_METADATA WHERE AUTHORIZATION_NAME LIKE ?", (f"%{query}%",))
+            raw_data = data_lib.fetchall()
             lv.controls.clear()
-            for i in list_to_show:
+            for i in raw_data:
                 lv.controls.append(
                     ft.ListTile(
-                        title=ft.Text(f"{i}"),
-                        on_click=lambda e, name=i: self.current_page.run_task(
+                        title=ft.Text(f"{i[0]}"),
+                        on_click=lambda e, name=i[0]: self.current_page.run_task(
                             self._show_single_user_info, name
                         ),
                         data=i
@@ -162,62 +142,63 @@ class AllUsers(ft.Column):
         """
         rebuild the list of libraries
         """
-        result = await ft.SharedPreferences().get('all_users')
-        if isinstance(result, str):
+        DBConnect = sqlite3.connect(self.path_to_DB_file)
+        cursor = DBConnect.cursor()
+        data_lib = cursor.execute("SELECT AUTHORIZATION_NAME, CREATION_TIMESTAMP, TEXT_DESCRIPTION FROM USER_METADATA")
 
-            data = json.loads(result)
+        data = data_lib.fetchall()
 
-            for item in data:
-                new_user_image: str = item["AUTHORIZATION_NAME"]
-                # formated_time = datetime.datetime(item['CREATION_TIMESTAMP'])
-                timestamp_str = item['CREATION_TIMESTAMP']
+        for item in data:
+            new_user_image: str = item[0]
+            # formated_time = datetime.datetime(item['CREATION_TIMESTAMP'])
+            timestamp_str = item[1]
 
-                # 2. Parse the string (must match the input format exactly)
-                dt_object = datetime.strptime(timestamp_str, "%Y-%m-%dT%H:%M:%S")
+            # 2. Parse the string (must match the input format exactly)
+            dt_object = datetime.strptime(timestamp_str, "%Y-%m-%dT%H:%M:%S")
 
-                # 3. Format into a new string
-                formatted_str = dt_object.strftime("%A, %b %d, %Y")
+            # 3. Format into a new string
+            formatted_str = dt_object.strftime("%A, %b %d, %Y")
 
-                new_user_tile = ft.Container(ft.ListTile(
-                    leading=ft.CircleAvatar(
+            new_user_tile = ft.Container(ft.ListTile(
+                leading=ft.CircleAvatar(
 
-                        content=ft.Text(new_user_image[0:2], bgcolor="#00ffe5", color="black"),
-                        bgcolor="#00ffe5"
-                    ),
-                    title=ft.Text(str(item["AUTHORIZATION_NAME"]).strip()),
-                    trailing=ft.PopupMenuButton(
-                        icon=ft.Icons.MORE_VERT,
-                        items=[
-                            ft.PopupMenuItem(
-                                content=ft.Row(
-                                    controls=[
-                                        ft.Icon(ft.Icons.INFO_OUTLINE),
-                                        ft.Text("Show Details"),]
-                                ),
-                                on_click=lambda e, name=item["AUTHORIZATION_NAME"]: self.current_page.run_task(
-                                    self._show_single_user_info, name)
-                            ),
-                            ft.PopupMenuItem(
-                                content=ft.Row(
-                                    controls=[
-                                        ft.Icon(ft.Icons.OUTGOING_MAIL),
-                                        ft.Text("Send Message"), ]
-                                ),
-                                on_click=lambda e, name=item["AUTHORIZATION_NAME"]: self.current_page.run_task(self._send_message_to_user, name)
-                            ),
-                        ],
-                    ),
-                    on_click=lambda e, name=item["AUTHORIZATION_NAME"]: self.current_page.run_task(self._show_single_user_info, name),
-                    is_three_line=True,
-                   subtitle=ft.Text(f"Description: {item['TEXT_DESCRIPTION']} \nCreated: {formatted_str}"),
-                    bgcolor=ft.Colors.INVERSE_PRIMARY,
+                    content=ft.Text(new_user_image[0][0:2], bgcolor="#00ffe5", color="black"),
+                    bgcolor="#00ffe5"
                 ),
-                    border_radius=8,
-                )
-                self.list_container.controls.append(new_user_tile)
+                title=ft.Text(str(item[0]).strip()),
+                trailing=ft.PopupMenuButton(
+                    icon=ft.Icons.MORE_VERT,
+                    items=[
+                        ft.PopupMenuItem(
+                            content=ft.Row(
+                                controls=[
+                                    ft.Icon(ft.Icons.INFO_OUTLINE),
+                                    ft.Text("Show Details"),]
+                            ),
+                            on_click=lambda e, name=item[0]: self.current_page.run_task(
+                                self._show_single_user_info, name)
+                        ),
+                        ft.PopupMenuItem(
+                            content=ft.Row(
+                                controls=[
+                                    ft.Icon(ft.Icons.OUTGOING_MAIL),
+                                    ft.Text("Send Message"), ]
+                            ),
+                            on_click=lambda e, name=item[0]: self.current_page.run_task(self._send_message_to_user, name)
+                        ),
+                    ],
+                ),
+                on_click=lambda e, name=item[0]: self.current_page.run_task(self._show_single_user_info, name),
+                is_three_line=True,
+               subtitle=ft.Text(f"Description: {item[2]} \nCreated: {formatted_str}"),
+                bgcolor=ft.Colors.INVERSE_PRIMARY,
+            ),
+                border_radius=8,
+            )
+            self.list_container.controls.append(new_user_tile)
 
-            self.input_card.visible = True
-            self.list_container.visible = True
+        self.input_card.visible = True
+        self.list_container.visible = True
 
         self.progress_bar.visible = False
         self.progress_bar_container.visible = False

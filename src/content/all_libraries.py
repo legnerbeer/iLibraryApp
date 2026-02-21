@@ -1,10 +1,11 @@
 import json
+from datetime import datetime
 from pathlib import Path
 import flet as ft
 from content.functions import load_decrypted_credentials, get_or_generate_key
 from iLibrary import Library
 import ast
-
+import sqlite3
 
 class AllLibraries(ft.Column):
     def __init__(self, page: ft.Page, content_manager):
@@ -27,6 +28,9 @@ class AllLibraries(ft.Column):
         self.DB_SYSTEM = None
         self.DB_PORT = None
 
+        self.path_to_DB = Path(__file__).parent.parent / ".auth"
+        self.path_to_DB_file = self.path_to_DB / "libraries_metadata.db"
+
         self.list_container = ft.Column()
         self.input_card = self.list_container
         self.progress_bar = ft.ProgressRing()
@@ -47,51 +51,28 @@ class AllLibraries(ft.Column):
     def open_searchbar(self, e):
         self.current_page.run_task( self.searchbar.open_view)
 
-    async def load_library_names(self):
-        # # 1. Get the data from SharedPreferences
-
-        print("Loading Library Names...")
-        raw_data = await ft.SharedPreferences().get(key='library_names')
-
-
-
-            # 2. High-Speed Parsing
-        try:
-            if raw_data:
-                # ast.literal_eval is faster/safer for Python-style string lists
-                parsed_data = ast.literal_eval(raw_data)
-
-                # If it's a nested list like ["['A', 'B']"], flatten it immediately
-                if isinstance(parsed_data, list) and len(parsed_data) == 1 and isinstance(parsed_data[0], str):
-                    parsed_data = ast.literal_eval(parsed_data[0])
-
-                self.library_list = [str(u).strip() for u in parsed_data]
-            else:
-                self.library_list = []
-        except (ValueError, SyntaxError) as e:
-            print(f"Fast parse failed, falling back to JSON: {e}")
-            # Minimal fallback
-            self.library_list = []
-
+    # ----------------------------
+    # Handle Search changes
+    # ----------------------------
     def handle_change(self, e):
         # 3. Get the search query
         query = e.data.upper().strip()
 
         # 4. Filter: Ensure 'library' is treated as a string
         # We check if 'query' is inside the 'library' name
-        list_to_show = [
-            lib for lib in self.library_list
-            if query in str(lib).upper()
-        ]
+        DBConnect = sqlite3.connect(self.path_to_DB_file)
+        cursor = DBConnect.cursor()
+        data_lib = cursor.execute("SELECT OBJNAME FROM LIBRARY_METADATA WHERE OBJNAME LIKE ?", (f"%{query}%",))
+        raw_data = data_lib.fetchall()
 
         # 5. Clear and Repopulate
         self.lv.controls.clear()
 
-        for library_name in list_to_show:
+        for library_name in raw_data:
             self.lv.controls.append(
                 ft.ListTile(
-                    title=ft.Text(library_name),  # Force to string
-                    on_click=lambda _, name=str(library_name).replace("'", ""): self.current_page.run_task(
+                    title=ft.Text(library_name[0]),  # Force to string
+                    on_click=lambda _, name=str(library_name[0]).replace("'", ""): self.current_page.run_task(
                         self._show_single_library_info, name
                     )
                 )
@@ -99,10 +80,11 @@ class AllLibraries(ft.Column):
 
         # update the UI
 
+    # ------------------------------
+    # Init the Main Page
+    # ------------------------------
     async def async_init(self):
         await self._create_app_bar()
-        # Load library names before using them
-        await self.load_library_names()
 
         # Create ListView and SearchBar
         self.lv = ft.ListView()
@@ -125,7 +107,8 @@ class AllLibraries(ft.Column):
 
         self.ENCRYPTION_KEY_STR = get_or_generate_key(self.env_file_path)
 
-        if await ft.SharedPreferences().contains_key('all_libraries'):
+
+        if  self.path_to_DB_file.exists():
             self.input_card.visible = True
             self.list_container.visible = True
 
@@ -138,6 +121,8 @@ class AllLibraries(ft.Column):
             # Uncomment if you want to show an error banner when no libraries are found
             # self.current_page.open(self.error_banner)
             pass
+
+
 
         self.update()
         # 1. Faster Task Initiation: Check a flag first to avoid redundant imports/tasks
@@ -170,47 +155,57 @@ class AllLibraries(ft.Column):
         """
         rebuild the list of libraries
         """
-        result = await ft.SharedPreferences().get('all_libraries')
-        if isinstance(result, str):
+        DBConnect = sqlite3.connect(self.path_to_DB_file)
+        cursor = DBConnect.cursor()
+        data_lib = cursor.execute("SELECT OBJNAME, OBJCREATED FROM LIBRARY_METADATA")
 
-            data = json.loads(result)
 
-            for item in data:
-                new_library_image: str = item["OBJNAME"]
 
-                new_library_tile = ft.Container(ft.ListTile(
-                    leading=ft.CircleAvatar(
+        data = data_lib.fetchall()
+        for item in data:
+            timestamp_str = item[1]
 
-                        content=ft.Text(new_library_image[0:2], bgcolor="#00ffe5", color="black"),
-                        bgcolor="#00ffe5"
-                    ),
-                    title=ft.Text(item["OBJNAME"]),
-                    trailing=ft.PopupMenuButton(
-                        icon=ft.Icons.MORE_VERT,
-                        items=[
-                            ft.PopupMenuItem(
-                                "Show Details",
-                                on_click=lambda e, name=item["OBJNAME"]: self.current_page.run_task(
-                                    self._show_single_library_info, name)
-                            ),
-                            ft.PopupMenuItem(
-                                "Get SaveFile",
-                                on_click=lambda e, name=item["OBJNAME"]: self.current_page.run_task(
-                                    self._get_single_savefile, name)
-                            ),
-                        ],
-                    ),
-                    on_click=lambda e, name=item["OBJNAME"]: self.current_page.run_task(self._show_single_library_info, name),
-                    is_three_line=True,
-                    subtitle=ft.Text(f"Description: {item['TEXT']} \nCreated: {item['OBJCREATED']}"),
-                    bgcolor=ft.Colors.INVERSE_PRIMARY,
+            # 2. Parse the string (must match the input format exactly)
+            dt_object = datetime.strptime(timestamp_str, "%Y-%m-%dT%H:%M:%S")
+
+            # 3. Format into a new string
+            formatted_str = dt_object.strftime("%A, %b %d, %Y")
+            new_library_image: str = item
+
+            new_library_tile = ft.Container(ft.ListTile(
+                leading=ft.CircleAvatar(
+
+                    content=ft.Text(new_library_image[0][0:2], bgcolor="#00ffe5", color="black"),
+                    bgcolor="#00ffe5"
                 ),
-                    border_radius=8,
-                )
-                self.list_container.controls.append(new_library_tile)
+                title=ft.Text(item[0]),
+                trailing=ft.PopupMenuButton(
+                    icon=ft.Icons.MORE_VERT,
+                    items=[
+                        ft.PopupMenuItem(
+                            "Show Details",
+                            on_click=lambda e, name=item[0]: self.current_page.run_task(
+                                self._show_single_library_info, name)
+                        ),
+                        ft.PopupMenuItem(
+                            "Get SaveFile",
+                            on_click=lambda e, name=item[0]: self.current_page.run_task(
+                                self._get_single_savefile, name)
+                        ),
+                    ],
+                ),
+                on_click=lambda e, name=item[0]: self.current_page.run_task(self._show_single_library_info, name),
+                is_three_line=True,
+                subtitle=ft.Text(f"Description: {item[0]} \nCreated: {formatted_str}"),
+                bgcolor=ft.Colors.INVERSE_PRIMARY,
+            ),
+                border_radius=8,
+            )
+            self.list_container.controls.append(new_library_tile)
 
-            self.input_card.visible = True
-            self.list_container.visible = True
+        data_lib.close()
+        self.input_card.visible = True
+        self.list_container.visible = True
 
         self.progress_bar.visible = False
         self.progress_bar_container.visible = False

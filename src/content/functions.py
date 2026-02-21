@@ -1,3 +1,4 @@
+import sqlite3
 from pathlib import Path
 import json
 import os
@@ -76,21 +77,46 @@ async def run_query_after_settings(page, page_content):
             try:
                 with Library(db_credentials["user"], db_credentials["password"],
                              db_credentials["system"], db_credentials["driver"]) as lib:
+                    # making a new table and insert data into it
+                    path_to_DB = Path(__file__).parent.parent / ".auth"
+                    path_to_DB_file = path_to_DB / "libraries_metadata.db"
+                    if not path_to_DB.exists():
+                        path_to_DB.mkdir(parents=True, exist_ok=True)
 
+                    DBConnect = sqlite3.connect(path_to_DB_file)
+                    cursor = DBConnect.cursor()
+                    cursor.execute("DROP TABLE IF EXISTS LIBRARY_METADATA")
+                    cursor.execute("""CREATE TABLE LIBRARY_METADATA
+                                      (
+
+                                          OBJNAME    VARCHAR(128),
+                                          OBJCREATED TIMESTAMP
+                                      )
+                                   """)
                     # 1. Ensure result is a valid string
                     raw_result = lib.getAllLibraries()
+
                     result_str = str(raw_result) if raw_result is not None else "[]"
 
-                    # Save the raw string
-                    await ft.SharedPreferences().set('all_libraries', str(result_str))
+                    data_list = json.loads(result_str)
 
-                    # 2. Parse and validate the list
-                    data = json.loads(result_str)
-                    # Ensure every item is a string and handle missing keys
-                    lib_names = [str(item.get("OBJNAME", "")) for item in data if item.get("OBJNAME")]
+                    if data_list:
+                        # Wir nehmen nur OBJNAME und OBJCREATED aus jedem Dictionary
+                        values = [(item.get('OBJNAME'), item.get('OBJCREATED')) for item in data_list]
 
-                    await ft.SharedPreferences().set('library_names', str(lib_names))
-                    #config.SERVER_STATUS = True
+                        sql_insert = "INSERT INTO LIBRARY_METADATA (OBJNAME, OBJCREATED) VALUES (?, ?)"
+
+                        # 3. Daten für executemany vorbereiten (Liste von Tupeln)
+                        # .get(col) stellt sicher, dass es nicht abstürzt, falls ein Key mal fehlt
+                        # values = [tuple(item.get(col) for col in columns) for item in data_list]
+
+                        try:
+                            # 4. Massen-Insert ausführen
+                            cursor.executemany(sql_insert, values)
+                            DBConnect.commit()
+                            print(f"Erfolg: {len(values)} Datensätze wurden importiert.")
+                        except sqlite3.Error as e:
+                            print(f"Fehler beim Einfügen: {e}")
 
             except Exception as e:
                 #config.SERVER_STATUS = False
@@ -102,18 +128,45 @@ async def run_query_after_settings(page, page_content):
                           db_credentials["system"], db_credentials["driver"]) as user:
 
                     # 1. Fetch result
+
+                    path_to_DB = Path(__file__).parent.parent / ".auth"
+                    path_to_DB_file = path_to_DB / "libraries_metadata.db"
+                    if not path_to_DB.exists():
+                        path_to_DB.mkdir(parents=True, exist_ok=True)
+
+                    DBConnect = sqlite3.connect(path_to_DB_file)
+                    cursor = DBConnect.cursor()
+
+                    cursor.execute("DROP TABLE IF EXISTS USER_METADATA")
+                    cursor.execute("""CREATE TABLE USER_METADATA
+                                      (
+                                          AUTHORIZATION_NAME VARCHAR(10),
+                                          CREATION_TIMESTAMP TIMESTAMP,
+                                          TEXT_DESCRIPTION   VARCHAR(50)
+                                      )
+                                   """)
+
+                    # 1. Ensure result is a valid string
                     raw_user_result = user.getAllUsers(wantJson=True)
                     user_result_str = str(raw_user_result) if raw_user_result is not None else "[]"
 
-                    await ft.SharedPreferences().set('all_users', str(user_result_str))
+                    data_list = json.loads(user_result_str)
 
-                    # 2. Parse and validate names
-                    user_data = json.loads(user_result_str)
-                    # Use .get() to prevent KeyErrors and str() to prevent type mismatches
-                    user_names = [str(item.get("AUTHORIZATION_NAME", "")) for item in user_data if
-                                  item.get("AUTHORIZATION_NAME")]
+                    if data_list:
+                        # Wir nehmen nur OBJNAME und OBJCREATED aus jedem Dictionary
+                        values = [(item.get('AUTHORIZATION_NAME'), item.get('CREATION_TIMESTAMP'),
+                                   item.get('TEXT_DESCRIPTION')) for item in data_list]
 
-                    await ft.SharedPreferences().set('user_names', str(user_names))
+                        sql_insert = "INSERT INTO USER_METADATA (AUTHORIZATION_NAME, CREATION_TIMESTAMP, TEXT_DESCRIPTION) VALUES (?, ?, ?)"
+
+                        try:
+                            # 4. Massen-Insert ausführen
+                            cursor.executemany(sql_insert, values)
+                            DBConnect.commit()
+
+                        except sqlite3.Error as e:
+                            page.show_dialog(ft.AlertDialog(title="Error", content=ft.Text(f"Error: {e}")))
+                            page.update()
 
             except Exception as e:
                 print(f"User Sync Error: {e}")
