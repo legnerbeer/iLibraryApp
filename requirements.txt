@@ -13,10 +13,11 @@ cookiecutter
 cryptography
 dotenv
 fastapi
-flet
-flet-cli
-flet-desktop
-flet-web
+flet<=0.81.0
+flet-cli<=0.81.0
+flet-dektop<=0.81.0
+flet-web<=0.81.0
+flet-lottie<=0.81.0
 h11
 httpcore
 httptools
@@ -62,7 +63,6 @@ typing_extensions
 tzdata
 urllib3
 uvicorn
-uvloop
 watchdog
 watchfiles
 websockets

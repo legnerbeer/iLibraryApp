@@ -5,6 +5,8 @@ import flet as ft
 from content.functions import load_decrypted_credentials, get_or_generate_key
 from iLibrary import Library
 import ast
+
+import flet_lottie as ftl
 import sqlite3
 
 class AllLibraries(ft.Column):
@@ -118,9 +120,51 @@ class AllLibraries(ft.Column):
 
             await self._rebuild_libraries()
         else:
-            # Uncomment if you want to show an error banner when no libraries are found
-            # self.current_page.open(self.error_banner)
-            pass
+            # Displays error message and settings button when no libraries
+            self.controls.append(
+                ft.Container(
+                    content=ft.Column(
+                        controls=[
+                            ft.Container(
+                                ft.Icon(ft.Icons.WARNING_AMBER_OUTLINED,
+                                    size=25,
+                                    color=ft.Colors.ON_ERROR_CONTAINER,
+
+                                ),
+                                alignment=ft.Alignment.CENTER,
+                                padding=ft.Padding.only(top=10),
+                            ),
+                           ft.Container(
+                               content=ft.Text("No Libraries Found",
+                                               size=15,
+                                               weight=ft.FontWeight.BOLD,
+                                               style=ft.TextStyle(color=ft.Colors.ON_ERROR_CONTAINER),
+                                    ),
+                               alignment=ft.Alignment.CENTER,
+                           ),
+                            ft.Container(
+                                content=ft.OutlinedButton(
+                                    content=ft.Text("Go to Settings",
+                                                    style=ft.TextStyle(
+                                                    color=ft.Colors.ON_ERROR_CONTAINER,
+                                        ),
+                                    ),
+                                    on_click=lambda e: self.current_page.run_task(self._go_to_settings),
+                                ),
+                                alignment=ft.Alignment.CENTER,
+                                padding=ft.Padding.only(bottom=10),
+                            )
+                        ],
+                        alignment=ft.MainAxisAlignment.CENTER,
+                    ),
+                    bgcolor=ft.Colors.ERROR_CONTAINER,
+                    width=1500,
+                    border_radius=10,  # Optional: makes the error box look cleaner
+                )
+            )
+            self.progress_bar_container.visible = False
+            self.current_page.update()
+            return
 
 
 
@@ -162,6 +206,7 @@ class AllLibraries(ft.Column):
 
 
         data = data_lib.fetchall()
+
         for item in data:
             timestamp_str = item[1]
 

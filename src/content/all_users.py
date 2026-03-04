@@ -120,7 +120,50 @@ class AllUsers(ft.Column):
             else:
              pass
         else:
-            pass
+            self.controls.append(
+                ft.Container(
+                    content=ft.Column(
+                        controls=[
+                            ft.Container(
+                                ft.Icon(ft.Icons.WARNING_AMBER_OUTLINED,
+                                        size=25,
+                                        color=ft.Colors.ON_ERROR_CONTAINER,
+
+                                        ),
+                                alignment=ft.Alignment.CENTER,
+                                padding=ft.Padding.only(top=10),
+                            ),
+                            ft.Container(
+                                content=ft.Text("No Users Found",
+                                                size=15,
+                                                weight=ft.FontWeight.BOLD,
+                                                style=ft.TextStyle(color=ft.Colors.ON_ERROR_CONTAINER),
+                                                ),
+                                alignment=ft.Alignment.CENTER,
+                            ),
+                            ft.Container(
+                                content=ft.OutlinedButton(
+                                    content=ft.Text("Go to Settings",
+                                                    style=ft.TextStyle(
+                                                        color=ft.Colors.ON_ERROR_CONTAINER,
+                                                    ),
+                                                    ),
+                                    on_click=lambda e: self.current_page.run_task(self._go_to_settings),
+                                ),
+                                alignment=ft.Alignment.CENTER,
+                                padding=ft.Padding.only(bottom=10),
+                            )
+                        ],
+                        alignment=ft.MainAxisAlignment.CENTER,
+                    ),
+                    bgcolor=ft.Colors.ERROR_CONTAINER,
+                    width=1500,
+                    border_radius=10,  # Optional: makes the error box look cleaner
+                )
+            )
+            self.progress_bar_container.visible = False
+            self.current_page.update()
+            return
 
         self.update()
 
@@ -283,3 +326,8 @@ class AllUsers(ft.Column):
             actions=[ft.TextButton("Cancel", on_click=lambda e: self.current_page.pop_dialog()), send_button],
         )
         self.current_page.show_dialog(message_dialog)
+
+    async def _go_to_settings(self):
+        self.current_page.update()
+        from content.settings import Settings
+        await self.content_manager(Settings(self.current_page, self.content_manager))

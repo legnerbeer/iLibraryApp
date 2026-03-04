@@ -38,24 +38,24 @@ async def run_sync(page: ft.Page, page_content: ft.Container):
         await clear_and_add_control(page_content, settings_view)
 
     # Define the persistent Banner
-    error_banner = ft.Banner(
-        bgcolor=ft.Colors.ERROR_CONTAINER,
-        leading=ft.Icon(ft.Icons.ERROR_OUTLINE, color=ft.Colors.ERROR, size=40),
-        content=ft.Text(
-            value="No Database Connection. Please check Credentials in Settings.",
-            color=ft.Colors.ON_ERROR_CONTAINER,
-        ),
-        actions=[
-            ft.TextButton(
-                "Go to Settings",
-                style=ft.ButtonStyle(color=ft.Colors.ON_ERROR_CONTAINER),
-                on_click=_handle_settings_click,
-            ),
-        ],
-    )
+    # error_banner = ft.Banner(
+    #     bgcolor=ft.Colors.ERROR_CONTAINER,
+    #     leading=ft.Icon(ft.Icons.ERROR_OUTLINE, color=ft.Colors.ERROR, size=40),
+    #     content=ft.Text(
+    #         value="No Database Connection. Please check Credentials in Settings.",
+    #         color=ft.Colors.ON_ERROR_CONTAINER,
+    #     ),
+    #     actions=[
+    #         ft.TextButton(
+    #             "Go to Settings",
+    #             style=ft.ButtonStyle(color=ft.Colors.ON_ERROR_CONTAINER),
+    #             on_click=_handle_settings_click,
+    #         ),
+    #     ],
+    # )
 
     # Initialize the overlay
-    page.overlay.append(error_banner)
+    #page.overlay.append(error_banner)
     page.update()
 
     # Periodically syncs library and user data; handles missing credentials
@@ -167,10 +167,10 @@ async def run_sync(page: ft.Page, page_content: ft.Container):
 
                 except Exception as e:
                     print(f"User Sync Error: {e}")
-        else:
+
             # Show banner if credentials missing
-            if not error_banner.open:
-                page.show_dialog(error_banner)
+            # if not error_banner.open:
+            #     page.show_dialog(error_banner)
 
         page.update()
         await asyncio.sleep(60.0)
@@ -200,6 +200,7 @@ async def main(page: ft.Page):
 
     # Navigation Bar Handler
     async def navigation_bar_changed(e):
+
         idx = e.control.selected_index
 
         if idx == 0:  # Libraries
@@ -247,6 +248,29 @@ async def main(page: ft.Page):
     )
 
     # Initial Layout Construction
+    env_file_path = Path(__file__).parent / "content" / ".env"
+    ENCRYPTION_KEY_STR = get_or_generate_key(env_file_path)
+    load_dotenv(env_file_path, override=True)
+    credentials_str = os.getenv("ENCRYPTED_DB_CREDENTIALS")
+    # print('hier')
+    if not credentials_str:
+
+        error_banner = ft.Banner(
+            bgcolor=ft.Colors.ERROR_CONTAINER,
+            leading=ft.Icon(ft.Icons.ERROR_OUTLINE, color=ft.Colors.ERROR, size=40),
+            content=ft.Text(
+                value="No Database Connection. Please check Credentials in Settings.",
+                color=ft.Colors.ON_ERROR_CONTAINER,
+            ),
+            actions=[
+                ft.TextButton(
+                    "Go to Settings",
+                    style=ft.ButtonStyle(color=ft.Colors.ON_ERROR_CONTAINER),
+                    on_click=lambda e: (page.run_task(route_to, Settings(page, content_manager=route_to))),
+                ),
+            ],
+        )
+        page.show_dialog(error_banner)
     page.add(
         ft.Row(
             [
