@@ -1,12 +1,9 @@
-import json
 from datetime import datetime
 from pathlib import Path
 import flet as ft
 from content.functions import load_decrypted_credentials, get_or_generate_key
 from iLibrary import Library
-import ast
 
-import flet_lottie as ftl
 import sqlite3
 
 class AllLibraries(ft.Column):

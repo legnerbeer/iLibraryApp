@@ -13,7 +13,10 @@ from content.functions import load_decrypted_credentials, get_or_generate_key
 from content.all_libraries import AllLibraries
 from content.all_users import AllUsers
 from content.settings import Settings
+import logging
 
+logging.basicConfig(level=logging.DEBUG, filename="flet_debug.log", filemode="w")
+logging.info("App started...")
 
 # --- Helper: Unified Navigation Content Manager ---
 async def clear_and_add_control(page_content: ft.Container, control):
@@ -36,23 +39,6 @@ async def run_sync(page: ft.Page, page_content: ft.Container):
             content_manager=lambda c: clear_and_add_control(page_content, c)
         )
         await clear_and_add_control(page_content, settings_view)
-
-    # Define the persistent Banner
-    # error_banner = ft.Banner(
-    #     bgcolor=ft.Colors.ERROR_CONTAINER,
-    #     leading=ft.Icon(ft.Icons.ERROR_OUTLINE, color=ft.Colors.ERROR, size=40),
-    #     content=ft.Text(
-    #         value="No Database Connection. Please check Credentials in Settings.",
-    #         color=ft.Colors.ON_ERROR_CONTAINER,
-    #     ),
-    #     actions=[
-    #         ft.TextButton(
-    #             "Go to Settings",
-    #             style=ft.ButtonStyle(color=ft.Colors.ON_ERROR_CONTAINER),
-    #             on_click=_handle_settings_click,
-    #         ),
-    #     ],
-    # )
 
     # Initialize the overlay
     #page.overlay.append(error_banner)
