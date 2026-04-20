@@ -121,13 +121,13 @@ class Settings(ft.Column):
 
         self.clear_app_data_modal = ft.AlertDialog(
             modal=True,
-            title=ft.Text("Clearing iLibrary", color=ft.Colors.RED),
+            title=ft.Text("Clearing iLibrary", color=ft.Colors.ERROR),
             content=ft.Text("Are you sure you want to clear and close the iLibrary App?"),
             actions=[
                 ft.TextButton("Cancel", on_click=lambda e: self.current_page.pop_dialog()),
                 ft.TextButton(
                     "Clear",
-                    style=ft.ButtonStyle(color=ft.Colors.ON_PRIMARY, bgcolor=ft.Colors.RED),
+                    style=ft.ButtonStyle(color=ft.Colors.ON_ERROR, bgcolor=ft.Colors.ERROR),
                     on_click=lambda e: (
                         self.current_page.run_task(self._clear_app_data, e),
                     )
@@ -334,8 +334,8 @@ class Settings(ft.Column):
         self.clear_app_data_modal.open = False
         if os.path.isfile(self.env_file_path):
             os.remove(self.env_file_path)
-        if os.path.exists(Path(__file__).parent.parent / ".auth"/ "libraries_metadata.db"):
-            os.remove(Path(__file__).parent.parent / ".auth"/ "libraries_metadata.db")
+        if os.path.exists(Path(__file__).parent / ".auth"/ "libraries_metadata.db"):
+            os.remove(Path(__file__).parent / ".auth"/ "libraries_metadata.db")
         await self.current_page.window.close()
         self.current_page.update()
 
@@ -347,26 +347,37 @@ class Settings(ft.Column):
                 title=ft.Text("About iLibrary"),
                 content=ft.Column(
                     controls=[
-                        ft.Row(
-                            controls=[
-                                ft.Text("App Name: ", size=15, weight=ft.FontWeight.BOLD),
-                                ft.Text(data["project"]["name"]),
-                        ]),
-                        ft.Row(
-                            controls=[
-                                ft.Text("Version: ", size=15, weight=ft.FontWeight.BOLD),
-                                ft.Text(data["project"]["version"]),
-                            ]),
-                        ft.Row(
-                            controls=[
-                                ft.Text("Author: ", size=15, weight=ft.FontWeight.BOLD),
-                                ft.Text(data["project"]["authors"][0]["name"]),
-                            ]),
-                        ft.Row(
-                            controls=[
-                                ft.Text("Email: ", size=15, weight=ft.FontWeight.BOLD),
-                                ft.Text(data["project"]["authors"][0]["email"]),
-                            ]),
+                        ft.DataTable(
+                            columns=[ft.DataColumn(label=ft.Text()),
+                                     ft.DataColumn(label=ft.Text())],
+                            rows=[
+                                ft.DataRow(
+                                    cells=[
+                                        ft.DataCell(ft.Text("App Name: ", size=15, weight=ft.FontWeight.BOLD)),
+                                        ft.DataCell( ft.Text(data["project"]["name"])),
+                                    ]
+                                ),
+                                ft.DataRow(
+                                    cells=[
+                                        ft.DataCell(ft.Text("Version: ", size=15, weight=ft.FontWeight.BOLD)),
+                                        ft.DataCell(data["project"]["version"]),
+                                    ]
+                                ),
+                                ft.DataRow(
+                                    cells=[
+                                        ft.DataCell(ft.Text("Author: ", size=15, weight=ft.FontWeight.BOLD)),
+                                        ft.DataCell(ft.Text(data["project"]["authors"][0]["name"])),
+                                    ]
+                                ),
+                                ft.DataRow(
+                                    cells=[
+                                        ft.DataCell(ft.Text("Email: ", size=15, weight=ft.FontWeight.BOLD)),
+                                        ft.DataCell(ft.Text(data["project"]["authors"][0]["email"])),
+                                    ]
+                                ),
+                            ],
+                            expand=True,
+                        ),
                         ft.Row(
                             spacing=10,
                             controls=[

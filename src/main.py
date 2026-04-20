@@ -1,23 +1,16 @@
-import asyncio
 import os
-import json
 import types
 from pathlib import Path
 from dotenv import load_dotenv
-import sqlite3
+from datetime import datetime
 import flet as ft
 from iLibrary import Library, User
-
-import content.config as config
-from content.functions import load_decrypted_credentials, get_or_generate_key
-from content.all_libraries import AllLibraries
-from content.all_users import AllUsers
+from content.sync_worker import SyncWorker
+from content.functions import get_or_generate_key
+from content.LibraryStuff.all_libraries import AllLibraries
+from content.UserStuff.all_users import AllUsers
 from content.settings import Settings
 import logging
-
-logging.basicConfig(level=logging.DEBUG, filename="flet_debug.log", filemode="w")
-logging.info("App started...")
-
 # --- Helper: Unified Navigation Content Manager ---
 async def clear_and_add_control(page_content: ft.Container, control):
     """Replaces the content of the main container and updates the UI."""
@@ -25,150 +18,51 @@ async def clear_and_add_control(page_content: ft.Container, control):
     page_content.update()
 
 
-# --- Background Task: Sync and Banner Management ---
-async def run_sync(page: ft.Page, page_content: ft.Container):
-    env_file_path = Path(__file__).parent / "content" / ".env"
+def setup_logger():
+    # 1. Define the directory: ~/Library/Logs/iLibraryApp
+    log_dir = Path.home() / "Library" / "Logs" / "iLibraryApp"
+    log_dir.mkdir(parents=True, exist_ok=True)
 
-    # Navigation logic for the Banner action
-    async def _handle_settings_click(e):
-        from content.settings import Settings
-        page.pop_dialog()
-        # Helper to route inside the background task
-        settings_view = Settings(
-            page,
-            content_manager=lambda c: clear_and_add_control(page_content, c)
-        )
-        await clear_and_add_control(page_content, settings_view)
+    # 2. Generate a unique filename based on the current start time
+    start_time = datetime.now().strftime("%Y%m%d_%H%M%S")
+    log_file = log_dir / f"build_session_{start_time}.log"
 
-    # Initialize the overlay
-    #page.overlay.append(error_banner)
-    page.update()
+    # 3. Configure the logger
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+        handlers=[
+            logging.FileHandler(log_file),  # Write to the new file
+            logging.StreamHandler()  # Also print to Terminal/Console
+        ]
+    )
 
-    # Periodically syncs library and user data; handles missing credentials
-    while True:
-        ENCRYPTION_KEY_STR = get_or_generate_key(env_file_path)
-        load_dotenv(env_file_path, override=True)
-        credentials_str = os.getenv("ENCRYPTED_DB_CREDENTIALS")
-
-        if credentials_str:
-            db_credentials = load_decrypted_credentials(ENCRYPTION_KEY_STR, env_file_path)
-
-            if db_credentials:
-                await ft.SharedPreferences().set('server', str(db_credentials["system"]))
-                page.pop_dialog()
-                try:
-                    with Library(db_credentials["user"], db_credentials["password"],
-                                 db_credentials["system"], db_credentials["driver"]) as lib:
-
-                        # making a new table and insert data into it
-                        path_to_DB = Path(__file__).parent / ".auth"
-                        path_to_DB_file = path_to_DB / "libraries_metadata.db"
-                        if not path_to_DB.exists():
-                            path_to_DB.mkdir(parents=True, exist_ok=True)
-
-                        DBConnect = sqlite3.connect(path_to_DB_file)
-                        cursor = DBConnect.cursor()
-
-                        cursor.execute("DROP TABLE IF EXISTS LIBRARY_METADATA")
-                        cursor.execute("""CREATE TABLE LIBRARY_METADATA
-                                          (
-                                              OBJNAME    VARCHAR(128),
-                                              OBJCREATED TIMESTAMP
-                                          )
-                                       """)
-
-                        # 1. Ensure result is a valid string
-                        raw_result = lib.getAllLibraries()
-
-                        result_str = str(raw_result) if raw_result is not None else "[]"
-
-                        data_list = json.loads(result_str)
-
-                        if data_list:
-                            # Wir nehmen nur OBJNAME und OBJCREATED aus jedem Dictionary
-                            values = [(item.get('OBJNAME'), item.get('OBJCREATED')) for item in data_list]
-
-                            sql_insert = "INSERT INTO LIBRARY_METADATA (OBJNAME, OBJCREATED) VALUES (?, ?)"
-
-                            try:
-                                # 4. Massen-Insert ausführen
-                                cursor.executemany(sql_insert, values)
-                                DBConnect.commit()
-
-                            except sqlite3.Error as e:
-                                page.show_dialog(ft.AlertDialog(title="Error", content=ft.Text(f"Error: {e}")))
-                                page.update()
-
-
-                except Exception as e:
-                    config.SERVER_STATUS = False
-                    print(f"Library Sync Error: {e}")
-
-                    # --- Sync Users ---
-                try:
-                    with User(db_credentials["user"], db_credentials["password"],
-                              db_credentials["system"], db_credentials["driver"]) as user:
-
-                        # 1. Fetch result
-
-
-                        path_to_DB = Path(__file__).parent / ".auth"
-                        path_to_DB_file = path_to_DB / "libraries_metadata.db"
-                        if not path_to_DB.exists():
-                            path_to_DB.mkdir(parents=True, exist_ok=True)
-
-                        DBConnect = sqlite3.connect(path_to_DB_file)
-                        cursor = DBConnect.cursor()
-
-                        cursor.execute("DROP TABLE IF EXISTS USER_METADATA")
-                        cursor.execute("""CREATE TABLE USER_METADATA
-                                          (
-                                              AUTHORIZATION_NAME    VARCHAR(10),
-                                              CREATION_TIMESTAMP TIMESTAMP,
-                                              TEXT_DESCRIPTION VARCHAR(50)
-                                          )
-                                       """)
-
-                        # 1. Ensure result is a valid string
-                        raw_user_result = user.getAllUsers(wantJson=True)
-                        user_result_str = str(raw_user_result) if raw_user_result is not None else "[]"
-
-                        data_list = json.loads(user_result_str)
-
-                        if data_list:
-                            # Wir nehmen nur OBJNAME und OBJCREATED aus jedem Dictionary
-                            values = [(item.get('AUTHORIZATION_NAME'), item.get('CREATION_TIMESTAMP'), item.get('TEXT_DESCRIPTION')) for item in data_list]
-
-                            sql_insert = "INSERT INTO USER_METADATA (AUTHORIZATION_NAME, CREATION_TIMESTAMP, TEXT_DESCRIPTION) VALUES (?, ?, ?)"
-
-                            try:
-                                # 4. Massen-Insert ausführen
-                                cursor.executemany(sql_insert, values)
-                                DBConnect.commit()
-
-                            except sqlite3.Error as e:
-                                page.show_dialog(ft.AlertDialog(title="Error", content=ft.Text(f"Error: {e}")))
-                                page.update()
-
-
-                except Exception as e:
-                    print(f"User Sync Error: {e}")
-
-            # Show banner if credentials missing
-            # if not error_banner.open:
-            #     page.show_dialog(error_banner)
-
-        page.update()
-        await asyncio.sleep(60.0)
+    logging.info(f"--- New Session Started: {log_file} ---")
 
 
 # --- Main Application Entry Point ---
 async def main(page: ft.Page):
-    # Setup Page Properties
+    setup_logger()
+    # 1. Initialize Worker
+    worker = SyncWorker(page=page)
+
+    # 2. Start the background task
+    # run_task returns a task object that Flet manages
+    page.run_task(worker.main_loop)
+
+    # 3. Define the Shutdown Logic
+    def handle_cleanup(e):
+        print("Application closing. Signaling worker to stop...")
+        # Tell the worker to stop its loop
+        worker.running = False
+
+        # Attach the cleanup function to the window close event
+
+    page.on_close = handle_cleanup
     page.title = "iLibrary App"
 
-    page.theme = ft.Theme(use_material3=True, color_scheme_seed="#00ffe5")
-
+    page.theme = ft.Theme(use_material3=True, color_scheme_seed="#006E7C")
+    #00ffe5
     # Load Theme Mode from storage
     theme_val = await ft.SharedPreferences().get("theme_mode")
     page.theme_mode = (
@@ -204,10 +98,10 @@ async def main(page: ft.Page):
                 content=ft.Text("Are you sure you want to leave?"),
                 actions=[
                     ft.TextButton("No", on_click=lambda _: page.pop_dialog()),
-                    ft.TextButton(
+                    ft.Button(
                         content="Yes",
                         on_click=lambda _: page.run_task(page.window.close),
-                        style=ft.ButtonStyle(bgcolor=ft.Colors.RED_ACCENT_400, color=ft.Colors.WHITE)
+                        style=ft.ButtonStyle(bgcolor=ft.Colors.ERROR, color=ft.Colors.ON_ERROR)
                     )
                 ]
             )
@@ -238,7 +132,6 @@ async def main(page: ft.Page):
     ENCRYPTION_KEY_STR = get_or_generate_key(env_file_path)
     load_dotenv(env_file_path, override=True)
     credentials_str = os.getenv("ENCRYPTED_DB_CREDENTIALS")
-    # print('hier')
     if not credentials_str:
 
         error_banner = ft.Banner(
@@ -274,7 +167,7 @@ async def main(page: ft.Page):
     )
 
     # Start Background Sync Task
-    # page.run_task(run_sync, page, page_content)
+    #page.run_task(run_sync, page)
 
     # Load Default View (Libraries)
     await navigation_bar_changed(types.SimpleNamespace(control=rail))

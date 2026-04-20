@@ -10,7 +10,8 @@ import tomllib
 import flet as ft
 from iLibrary import Library, User
 
-
+from content.db_manager import db_mgr
+import logging
 
 def load_decrypted_credentials(key: str, env_file_path: Path) -> dict | None:
     """
@@ -49,7 +50,7 @@ def load_decrypted_credentials(key: str, env_file_path: Path) -> dict | None:
         # 6. Parse the JSON string back into a Python dictionary
         credentials = json.loads(decrypted_string)
 
-        print("INFO: Database credentials successfully loaded and decrypted.")
+        #print("INFO: Database credentials successfully loaded and decrypted.")
         return credentials
 
     except Exception as e:
@@ -58,125 +59,149 @@ def load_decrypted_credentials(key: str, env_file_path: Path) -> dict | None:
 
 
 # --- Background Task: Sync and Banner Management ---
-async def run_query_after_settings(page, page_content):
+
+logger = logging.getLogger("QueryAfterSettings")
+
+
+async def run_query_after_settings(page: ft.Page, page_content: ft.Container):
+    """
+    Executed after settings are saved.
+    Loads credentials and performs an immediate sync of Library and User metadata.
+    """
     env_file_path = Path(__file__).parent / ".env"
 
-
-
-    ENCRYPTION_KEY_STR = get_or_generate_key(env_file_path)
+    # 1. Load and Decrypt Credentials
     load_dotenv(env_file_path, override=True)
+    encryption_key = get_or_generate_key(env_file_path)
     credentials_str = os.getenv("ENCRYPTED_DB_CREDENTIALS")
 
+    if not credentials_str:
+        logger.warning("Sync aborted: No credentials found.")
+        return
 
-    if credentials_str:
-        db_credentials = load_decrypted_credentials(ENCRYPTION_KEY_STR, env_file_path)
+    db_creds = load_decrypted_credentials(encryption_key, env_file_path)
+    if not db_creds:
+        logger.error("Sync aborted: Could not decrypt credentials.")
+        return
 
-        if db_credentials:
-            await ft.SharedPreferences().set('server', str(db_credentials["system"]))
-            page.pop_dialog()
-            try:
-                with Library(db_credentials["user"], db_credentials["password"],
-                             db_credentials["system"], db_credentials["driver"]) as lib:
-                    # making a new table and insert data into it
-                    path_to_DB = Path(__file__).parent.parent / ".auth"
-                    path_to_DB_file = path_to_DB / "libraries_metadata.db"
-                    if not path_to_DB.exists():
-                        path_to_DB.mkdir(parents=True, exist_ok=True)
+    # Update Global State
+    await ft.SharedPreferences().set('server', str(db_creds["system"]))
 
-                    DBConnect = sqlite3.connect(path_to_DB_file)
-                    cursor = DBConnect.cursor()
-                    cursor.execute("DROP TABLE IF EXISTS LIBRARY_METADATA")
-                    cursor.execute("""CREATE TABLE LIBRARY_METADATA
-                                      (
+    # Close any open dialogs (like the settings modal)
+    page.pop_dialog()
 
-                                          OBJNAME    VARCHAR(128),
-                                          OBJCREATED TIMESTAMP
-                                      )
-                                   """)
-                    # 1. Ensure result is a valid string
-                    raw_result = lib.getAllLibraries()
+    # 2. Synchronize Library Data
+    try:
+        with Library(db_creds["user"], db_creds["password"],
+                     db_creds["system"], db_creds["driver"]) as lib:
 
-                    result_str = str(raw_result) if raw_result is not None else "[]"
+            raw_data = json.loads(lib.getAllLibraries())
+            items = raw_data.get('data', [])
 
-                    data_list = json.loads(result_str)
+            values = [
+                (item.get('OBJNAME'), item.get('OBJCREATED'))
+                for item in items if isinstance(item, dict)
+            ]
 
-                    if data_list:
-                        # Wir nehmen nur OBJNAME und OBJCREATED aus jedem Dictionary
-                        values = [(item.get('OBJNAME'), item.get('OBJCREATED')) for item in data_list]
+            # Use the manager to refresh the table
+            db_mgr.refresh_table(
+                table_name="LIBRARY_METADATA",
+                schema="(OBJNAME TEXT, OBJCREATED TEXT)",
+                insert_sql="INSERT INTO LIBRARY_METADATA VALUES (?, ?)",
+                data=values
+            )
+            logger.info(f"Library Sync: {len(values)} items processed.")
 
-                        sql_insert = "INSERT INTO LIBRARY_METADATA (OBJNAME, OBJCREATED) VALUES (?, ?)"
+    except Exception as e:
+        logger.exception(f"Library Sync failed: {e}")
 
-                        # 3. Daten für executemany vorbereiten (Liste von Tupeln)
-                        # .get(col) stellt sicher, dass es nicht abstürzt, falls ein Key mal fehlt
-                        # values = [tuple(item.get(col) for col in columns) for item in data_list]
+    # 3. Synchronize User Data
+    try:
+        with User(db_creds["user"], db_creds["password"],
+                  db_creds["system"], db_creds["driver"]) as user:
 
-                        try:
-                            # 4. Massen-Insert ausführen
-                            cursor.executemany(sql_insert, values)
-                            DBConnect.commit()
-                            print(f"Erfolg: {len(values)} Datensätze wurden importiert.")
-                        except sqlite3.Error as e:
-                            print(f"Fehler beim Einfügen: {e}")
+            raw_data = json.loads(user.getAllUsers())
+            items = raw_data.get('data', [])
 
-            except Exception as e:
-                #config.SERVER_STATUS = False
-                print(f"Library Sync Error: {e}")
+            values = [
+                (item.get('AUTHORIZATION_NAME'), item.get('CREATION_TIMESTAMP'), item.get('TEXT_DESCRIPTION'))
+                for item in items if isinstance(item, dict)
+            ]
 
-                # --- Sync Users ---
-            try:
-                with User(db_credentials["user"], db_credentials["password"],
-                          db_credentials["system"], db_credentials["driver"]) as user:
+            # Use the manager to refresh the table
+            db_mgr.refresh_table(
+                table_name="USER_METADATA",
+                schema="(AUTHORIZATION_NAME TEXT, CREATION_TIMESTAMP TEXT, TEXT_DESCRIPTION TEXT)",
+                insert_sql="INSERT INTO USER_METADATA VALUES (?, ?, ?)",
+                data=values
+            )
+            logger.info(f"User Sync: {len(values)} items processed.")
 
-                    # 1. Fetch result
+    except Exception as e:
+        logger.exception(f"User Sync failed: {e}")
 
-                    path_to_DB = Path(__file__).parent.parent / ".auth"
-                    path_to_DB_file = path_to_DB / "libraries_metadata.db"
-                    if not path_to_DB.exists():
-                        path_to_DB.mkdir(parents=True, exist_ok=True)
-
-                    DBConnect = sqlite3.connect(path_to_DB_file)
-                    cursor = DBConnect.cursor()
-
-                    cursor.execute("DROP TABLE IF EXISTS USER_METADATA")
-                    cursor.execute("""CREATE TABLE USER_METADATA
-                                      (
-                                          AUTHORIZATION_NAME VARCHAR(10),
-                                          CREATION_TIMESTAMP TIMESTAMP,
-                                          TEXT_DESCRIPTION   VARCHAR(50)
-                                      )
-                                   """)
-
-                    # 1. Ensure result is a valid string
-                    raw_user_result = user.getAllUsers(wantJson=True)
-                    user_result_str = str(raw_user_result) if raw_user_result is not None else "[]"
-
-                    data_list = json.loads(user_result_str)
-
-                    if data_list:
-                        # Wir nehmen nur OBJNAME und OBJCREATED aus jedem Dictionary
-                        values = [(item.get('AUTHORIZATION_NAME'), item.get('CREATION_TIMESTAMP'),
-                                   item.get('TEXT_DESCRIPTION')) for item in data_list]
-
-                        sql_insert = "INSERT INTO USER_METADATA (AUTHORIZATION_NAME, CREATION_TIMESTAMP, TEXT_DESCRIPTION) VALUES (?, ?, ?)"
-
-                        try:
-                            # 4. Massen-Insert ausführen
-                            cursor.executemany(sql_insert, values)
-                            DBConnect.commit()
-
-                        except sqlite3.Error as e:
-                            page.show_dialog(ft.AlertDialog(title="Error", content=ft.Text(f"Error: {e}")))
-                            page.update()
-
-            except Exception as e:
-                print(f"User Sync Error: {e}")
-    else:
-        # Show banner if credentials missing
-        if not error_banner.open:
-            page.show_dialog(error_banner)
-
+    # Final UI Refresh
     page.update()
 
+
+async def _sync_library_data(page, creds, db_path):
+    try:
+        with Library(creds["user"], creds["password"], creds["system"], creds["driver"]) as lib:
+            raw_data = json.loads(lib.getAllLibraries())
+            items = raw_data.get('data', [])
+
+            values = [
+                (item.get('OBJNAME'), item.get('OBJCREATED'))
+                for item in items if isinstance(item, dict)
+            ]
+
+            _execute_db_transaction(
+                db_path,
+                "DROP TABLE IF EXISTS LIBRARY_METADATA",
+                "CREATE TABLE LIBRARY_METADATA (OBJNAME VARCHAR(128), OBJCREATED TIMESTAMP)",
+                "INSERT INTO LIBRARY_METADATA (OBJNAME, OBJCREATED) VALUES (?, ?)",
+                values
+            )
+            logger.info("Library metadata synced successfully.")
+    except Exception as e:
+        logger.error(f"Library Sync Error: {e}")
+
+
+async def _sync_user_data(page, creds, db_path):
+    try:
+        with User(creds["user"], creds["password"], creds["system"], creds["driver"]) as user:
+            raw_data = json.loads(user.getAllUsers())
+            items = raw_data.get('data', [])
+
+            values = [
+                (item.get('AUTHORIZATION_NAME'), item.get('CREATION_TIMESTAMP'), item.get('TEXT_DESCRIPTION'))
+                for item in items if isinstance(item, dict)
+            ]
+
+            _execute_db_transaction(
+                db_path,
+                "DROP TABLE IF EXISTS USER_METADATA",
+                "CREATE TABLE USER_METADATA (AUTHORIZATION_NAME VARCHAR(10), CREATION_TIMESTAMP TIMESTAMP, TEXT_DESCRIPTION VARCHAR(50))",
+                "INSERT INTO USER_METADATA (AUTHORIZATION_NAME, CREATION_TIMESTAMP, TEXT_DESCRIPTION) VALUES (?, ?, ?)",
+                values
+            )
+            logger.info("User metadata synced successfully.")
+    except Exception as e:
+        logger.error(f"User Sync Error: {e}")
+
+
+def _execute_db_transaction(db_path, drop_sql, create_sql, insert_sql, values):
+    """Internal helper to minimize boilerplate for SQLite operations."""
+    try:
+        with sqlite3.connect(db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute(drop_sql)
+            cursor.execute(create_sql)
+            cursor.executemany(insert_sql, values)
+            conn.commit()
+    except sqlite3.Error as e:
+        logger.error(f"Database Transaction Error: {e}")
+        raise  # Pass it up to the caller to handle UI notifications
 
 def get_or_generate_key(env_file_path: Path) -> str:
     """
@@ -239,8 +264,9 @@ def try_to_build_connection(db_driver:str, db_host:str, port:int, db_user:str, d
 
 def load_app_info():
     try:
-        with open("pyproject.toml", "rb") as f:
-            data = tomllib.load(f)
+        with open("assets/app.json", "rb") as f:
+            data = json.load(f)
+            print(data)
             return  data
     except Exception as e:
         print(e)

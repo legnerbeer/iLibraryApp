@@ -19,7 +19,7 @@ class AllUsers(ft.Column):
         )
         self.current_page = page
         self.content_manager = content_manager
-        self.env_file_path = Path(__file__).parent / ".env"
+        self.env_file_path = Path(__file__).parent.parent / ".env"
         self.badge_server_status = ft.Badge()
 
         self.ENCRYPTION_KEY_STR = None
@@ -88,6 +88,7 @@ class AllUsers(ft.Column):
             on_change=handle_change,
             on_tap=open_searchbar,
             controls=[lv],
+            visible=False,
         )
 
         if not await ft.SharedPreferences().contains_key('download_path'):
@@ -183,69 +184,100 @@ class AllUsers(ft.Column):
 
     async def _rebuild_users(self):
         """
-        rebuild the list of libraries
+        Safely rebuilds the list of users from the local SQLite database.
         """
-        DBConnect = sqlite3.connect(self.path_to_DB_file)
-        cursor = DBConnect.cursor()
-        data_lib = cursor.execute("SELECT AUTHORIZATION_NAME, CREATION_TIMESTAMP, TEXT_DESCRIPTION FROM USER_METADATA")
+        # 1. Ensure the directory exists before trying to open the file
+        # This prevents the "unable to open database file" error
+        self.path_to_DB.mkdir(parents=True, exist_ok=True)
 
-        data = data_lib.fetchall()
+        # Clear the container to avoid duplicating the list on refresh
+        self.list_container.controls.clear()
 
-        for item in data:
-            new_user_image: str = item[0]
-            # formated_time = datetime.datetime(item['CREATION_TIMESTAMP'])
-            timestamp_str = item[1]
+        try:
+            # Use a timeout in case the background worker is currently writing
+            with sqlite3.connect(self.path_to_DB_file, timeout=10) as conn:
+                cursor = conn.cursor()
 
-            # 2. Parse the string (must match the input format exactly)
-            dt_object = datetime.strptime(timestamp_str, "%Y-%m-%dT%H:%M:%S")
+                # 2. Defensive Check: Does the table exist?
+                # This prevents crashing if the sync worker hasn't run yet.
+                cursor.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table' AND name='USER_METADATA'"
+                )
+                if not cursor.fetchone():
+                    print("USER_METADATA table not found yet. Showing syncing state.")
+                    self._show_loading_status("Initializing users...")
+                    return
 
-            # 3. Format into a new string
-            formatted_str = dt_object.strftime("%A, %b %d, %Y")
+                # 3. Fetch data
+                cursor.execute("SELECT AUTHORIZATION_NAME, CREATION_TIMESTAMP, TEXT_DESCRIPTION FROM USER_METADATA")
+                data = cursor.fetchall()
 
-            new_user_tile = ft.Container(ft.ListTile(
-                leading=ft.CircleAvatar(
+                if not data:
+                    self._show_loading_status("No users found. Waiting for sync...")
+                    return
 
-                    content=ft.Text(new_user_image[0][0:2], bgcolor="#00ffe5", color="black"),
-                    bgcolor="#00ffe5"
-                ),
-                title=ft.Text(str(item[0]).strip()),
-                trailing=ft.PopupMenuButton(
-                    icon=ft.Icons.MORE_VERT,
-                    items=[
-                        ft.PopupMenuItem(
-                            content=ft.Row(
-                                controls=[
-                                    ft.Icon(ft.Icons.INFO_OUTLINE),
-                                    ft.Text("Show Details"),]
+                # 4. Loop through data and build UI
+                for item in data:
+                    username = str(item[0]).strip()
+                    timestamp_str = item[1]
+                    description = item[2]
+
+                    try:
+                        dt_object = datetime.strptime(timestamp_str, "%Y-%m-%d %H:%M:%S")
+                        formatted_str = dt_object.strftime("%A, %b %d, %Y")
+                    except:
+                        formatted_str = timestamp_str
+
+                    new_user_tile = ft.Container(
+                        content=ft.ListTile(
+                            leading=ft.CircleAvatar(
+                                content=ft.Text(username[0:2].upper()),
+                                bgcolor=ft.Colors.TERTIARY,
+                                color=ft.Colors.ON_TERTIARY
                             ),
-                            on_click=lambda e, name=item[0]: self.current_page.run_task(
-                                self._show_single_user_info, name)
-                        ),
-                        ft.PopupMenuItem(
-                            content=ft.Row(
-                                controls=[
-                                    ft.Icon(ft.Icons.OUTGOING_MAIL),
-                                    ft.Text("Send Message"), ]
+                            title=ft.Text(username),
+                            subtitle=ft.Text(f"Description: {description} \nCreated: {formatted_str}"),
+                            is_three_line=True,
+                            bgcolor=ft.Colors.INVERSE_PRIMARY,
+                            on_click=lambda e, name=username: self.current_page.run_task(
+                                self._show_single_user_info, name
                             ),
-                            on_click=lambda e, name=item[0]: self.current_page.run_task(self._send_message_to_user, name)
+                            trailing=ft.PopupMenuButton(
+                                icon=ft.Icons.MORE_VERT,
+                                items=[
+                                    ft.PopupMenuItem(
+                                        content=ft.Row([ft.Icon(ft.Icons.INFO_OUTLINE), ft.Text("Show Details")]),
+                                        on_click=lambda e, name=username: self.current_page.run_task(
+                                            self._show_single_user_info, name)
+                                    ),
+                                    ft.PopupMenuItem(
+                                        content=ft.Row([ft.Icon(ft.Icons.OUTGOING_MAIL), ft.Text("Send Message")]),
+                                        on_click=lambda e, name=username: self.current_page.run_task(
+                                            self._send_message_to_user, name)
+                                    ),
+                                ],
+                            ),
                         ),
-                    ],
-                ),
-                on_click=lambda e, name=item[0]: self.current_page.run_task(self._show_single_user_info, name),
-                is_three_line=True,
-               subtitle=ft.Text(f"Description: {item[2]} \nCreated: {formatted_str}"),
-                bgcolor=ft.Colors.INVERSE_PRIMARY,
-            ),
-                border_radius=8,
-            )
-            self.list_container.controls.append(new_user_tile)
+                        border_radius=8,
+                    )
+                    self.list_container.controls.append(new_user_tile)
 
+        except sqlite3.OperationalError as e:
+            print(f"Database access error: {e}")
+            self._show_loading_status("Database Busy... Please wait.")
+            return
+
+        # 5. UI Updates
         self.input_card.visible = True
         self.list_container.visible = True
-
-        self.progress_bar.visible = False
         self.progress_bar_container.visible = False
+        self.searchbar.visible = True
+        self.update()
 
+    def _show_loading_status(self, text):
+        """Helper to show status inside the list container without crashing."""
+        self.list_container.controls.append(ft.ListTile(title=ft.Text(text)))
+        self.progress_bar_container.visible = False
         self.update()
 
     # --------------------------------------------------------
@@ -254,7 +286,7 @@ class AllUsers(ft.Column):
         Going to the user info page
         :param name:
         """
-        from content.single_user_info import SingleUserInfo
+        from content.UserStuff.single_user_info import SingleUserInfo
         await self.content_manager(SingleUserInfo(self.current_page, name, self.content_manager))
 
 
@@ -293,8 +325,9 @@ class AllUsers(ft.Column):
             with User(self.DB_USER, self.DB_PASSWORD, self.DB_SYSTEM, self.DB_DRIVER) as msg:
                 data:str = msg.send_message_to_user(username=str(username) , message=message_textfield.value)
                 get_data = json.loads(data)
+
                 if get_data.get("success"):
-                    msg_feedback = ft.Text(f"Message sent successfully to {username}")
+                    msg_feedback = ft.Text(f"{get_data.get('message')}")
                     snack_bg_color = ft.Colors.GREEN_ACCENT_400
 
                 if get_data.get("error"):

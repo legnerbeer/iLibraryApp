@@ -1,11 +1,14 @@
+import json
 from datetime import datetime
+from os import ftruncate
 from pathlib import Path
 import flet as ft
 from content.functions import load_decrypted_credentials, get_or_generate_key
 from iLibrary import Library
+import logging
 
 import sqlite3
-
+logger = logging.getLogger(__name__)
 class AllLibraries(ft.Column):
     def __init__(self, page: ft.Page, content_manager):
         """Initializes libraries UI; starts asynchronous credential loading"""
@@ -16,7 +19,7 @@ class AllLibraries(ft.Column):
         )
         self.current_page = page
         self.content_manager = content_manager
-        self.env_file_path = Path(__file__).parent / ".env"
+        self.env_file_path = Path(__file__).parent.parent / ".env"
         self.badge_server_status = ft.Badge()
 
         self.ENCRYPTION_KEY_STR = None
@@ -43,6 +46,8 @@ class AllLibraries(ft.Column):
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.progress_bar.visible = True
         self.progress_bar_container.visible = True
+        self.searchbar.visible = False
+        self.update()
         self.current_page.update()
 
     # --------------------------------------------------------
@@ -95,6 +100,7 @@ class AllLibraries(ft.Column):
             on_change=self.handle_change,  # use method, not function
             on_tap=self.open_searchbar,  # open searchbar when tapped
             controls=[self.lv],  # ListView inside the SearchBar
+            visible=False,
         )
 
         # Download path and SharedPreferences logic
@@ -167,11 +173,11 @@ class AllLibraries(ft.Column):
 
         self.update()
         # 1. Faster Task Initiation: Check a flag first to avoid redundant imports/tasks
-        if not getattr(self.page, "sync_started", False):
-            page_content = ft.Container(expand=True)
-            from main import run_sync
-            self.page.run_task(run_sync, self.current_page, page_content)
-            self.page.sync_started = True
+        # if not getattr(self.page, "sync_started", False):
+        #     page_content = ft.Container(expand=True)
+        #     #from main import run_sync
+        #     self.page.run_task(run_sync, self.current_page)
+        #     self.page.sync_started = True
 
     async def _create_app_bar(self):
         """
@@ -194,73 +200,144 @@ class AllLibraries(ft.Column):
 
     async def _rebuild_libraries(self):
         """
-        rebuild the list of libraries
+        Safely rebuilds the list of libraries.
+        Handles cases where the table doesn't exist yet or the DB is locked.
         """
-        DBConnect = sqlite3.connect(self.path_to_DB_file)
-        cursor = DBConnect.cursor()
-        data_lib = cursor.execute("SELECT OBJNAME, OBJCREATED FROM LIBRARY_METADATA")
+        # 1. Clear previous content to avoid duplicates on refresh
+        self.list_container.controls.clear()
+
+        try:
+            # Use a timeout so we wait if the SyncWorker is currently writing
+
+            with sqlite3.connect(self.path_to_DB_file, timeout=10) as conn:
+                cursor = conn.cursor()
+
+                # 2. Defensive Check: Does the table exist?
+                cursor.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table' AND name='LIBRARY_METADATA'"
+                )
+                if not cursor.fetchone():
+                    logger.warning("LIBRARY_METADATA table not found. Waiting for sync...")
+                    self._show_syncing_state()
+                    return
+
+                # 3. Fetch data
+                cursor.execute("SELECT OBJNAME, OBJCREATED, DESCRIPTION FROM LIBRARY_METADATA")
+                data = cursor.fetchall()
+                if not data:
+                    self._show_empty_state("No libraries found in database.")
+                    return
+
+                # 4. Build UI Controls
+                for item in data:
+
+                    lib_name, timestamp_str, description_lib = item
+
+                    try:
+                        dt_object = datetime.strptime(timestamp_str, "%Y-%m-%d %H:%M:%S")
+                        formatted_str = dt_object.strftime("%A, %b %d, %Y")
+                    except (ValueError, TypeError):
+                        formatted_str = "Unknown Date"
+                    subtitle = ft.Column(
+                        spacing=0,
+                        controls=[
+                            ft.Row(
+                                controls=[
+                                    ft.Text(f"Description:", weight=ft.FontWeight.BOLD), ft.Text(f"{description_lib}"),
+
+                             ]
+
+                            ),
+                            ft.Row(
 
 
+                                controls=[
+                                    ft.Text(f"Created:", weight=ft.FontWeight.BOLD), ft.Text(f"{formatted_str}"),
 
-        data = data_lib.fetchall()
+                                ]
 
-        for item in data:
-            timestamp_str = item[1]
+                            )
+                        ]
+                    )
 
-            # 2. Parse the string (must match the input format exactly)
-            dt_object = datetime.strptime(timestamp_str, "%Y-%m-%dT%H:%M:%S")
-
-            # 3. Format into a new string
-            formatted_str = dt_object.strftime("%A, %b %d, %Y")
-            new_library_image: str = item
-
-            new_library_tile = ft.Container(ft.ListTile(
-                leading=ft.CircleAvatar(
-
-                    content=ft.Text(new_library_image[0][0:2], bgcolor="#00ffe5", color="black"),
-                    bgcolor="#00ffe5"
-                ),
-                title=ft.Text(item[0]),
-                trailing=ft.PopupMenuButton(
-                    icon=ft.Icons.MORE_VERT,
-                    items=[
-                        ft.PopupMenuItem(
-                            "Show Details",
-                            on_click=lambda e, name=item[0]: self.current_page.run_task(
-                                self._show_single_library_info, name)
+                    new_library_tile = ft.Container(
+                        content=ft.ListTile(
+                            leading=ft.CircleAvatar(
+                                content=ft.Text(lib_name[0:2].upper()),
+                                bgcolor=ft.Colors.TERTIARY,
+                                color=ft.Colors.ON_TERTIARY,
+                            ),
+                            title=ft.Text(lib_name),
+                            subtitle=subtitle,
+                            bgcolor=ft.Colors.INVERSE_PRIMARY,
+                            is_three_line=True,
+                            on_click=lambda e, name=lib_name: self.current_page.run_task(
+                                self._show_single_library_info, name
+                            ),
+                            trailing=ft.PopupMenuButton(
+                                icon=ft.Icons.MORE_VERT,
+                                items=[
+                                    ft.PopupMenuItem(
+                                        "Show Details",
+                                        on_click=lambda e, name=lib_name: self.current_page.run_task(
+                                            self._show_single_library_info, name
+                                        )
+                                    ),
+                                    ft.PopupMenuItem(
+                                        "Get SaveFile",
+                                        on_click=lambda e, name=lib_name: self.current_page.run_task(
+                                            self._get_single_savefile, name
+                                        )
+                                    ),
+                                ],
+                            ),
                         ),
-                        ft.PopupMenuItem(
-                            "Get SaveFile",
-                            on_click=lambda e, name=item[0]: self.current_page.run_task(
-                                self._get_single_savefile, name)
-                        ),
-                    ],
-                ),
-                on_click=lambda e, name=item[0]: self.current_page.run_task(self._show_single_library_info, name),
-                is_three_line=True,
-                subtitle=ft.Text(f"Description: {item[0]} \nCreated: {formatted_str}"),
-                bgcolor=ft.Colors.INVERSE_PRIMARY,
-            ),
-                border_radius=8,
-            )
-            self.list_container.controls.append(new_library_tile)
+                        border_radius=8,
+                    )
+                    self.list_container.controls.append(new_library_tile)
 
-        data_lib.close()
+        except sqlite3.OperationalError as e:
+            logger.error(f"Database error: {e}")
+            self._show_empty_state("Database is currently busy. Retrying...")
+            return
+
+        # 5. UI Updates
         self.input_card.visible = True
         self.list_container.visible = True
-
-        self.progress_bar.visible = False
         self.progress_bar_container.visible = False
-
+        self.searchbar.visible = True
         self.update()
 
+    def _show_syncing_sttate(self):
+        """Shows a message when the database is being initialized."""
+        self.list_container.controls.append(
+            ft.ListTile(
+                leading=ft.ProgressRing(width=20, height=20),
+                title=ft.Text("Syncing data from server..."),
+                subtitle=ft.Text("This may take a moment on the first run.")
+            )
+        )
+        self.progress_bar_container.visible = False
+        self.update()
+
+    def _show_empty_state(self, message):
+        """Shows an error/empty message."""
+        self.list_container.controls.append(
+            ft.Container(
+                content=ft.Text(message, color=ft.Colors.ERROR),
+                padding=20,
+                alignment=ft.Alignment.CENTER
+            )
+        )
+        self.progress_bar_container.visible = False
+        self.update()
     # --------------------------------------------------------
     async def _show_single_library_info(self, name):
         """
         Going to the library info page
         :param name:
         """
-        from content.single_library_info import Info
+        from content.LibraryStuff.single_library_info import Info
         await self.content_manager(Info(self.current_page, name, self.content_manager))
 
 
@@ -280,9 +357,10 @@ class AllLibraries(ft.Column):
                 self.DB_DRIVER = credentials["driver"]
                 self.DB_PORT = credentials["port"]
                 self.current_page.pop_dialog()
+                data = None
                 with Library(self.DB_USER, self.DB_PASSWORD, self.DB_SYSTEM, self.DB_DRIVER) as lib:
                     try:
-                        lib.saveLibrary(
+                        data = lib.saveLibrary(
                             library=library_name,
                             saveFileName=savefile_name,
                             description=description,
@@ -290,19 +368,21 @@ class AllLibraries(ft.Column):
                             remPath=f'/home/{self.DB_USER.upper()}/',
                             authority=authority,
                             version=version,
-                            remSavf=True,
                             getZip=True,
                             port=self.DB_PORT
                         )
                         self.current_page.run_task(ft.SharedPreferences().set, 'download_path', download_path)
+                        data = json.loads(data)
+                        if data['code'] != 200:
+                            raise Exception(data['error']['details'])
                     except Exception as e:
                         self.current_page.show_dialog(ft.SnackBar(
-                            content=ft.Text(f"Failed: {e}", color=ft.Colors.WHITE),
+                            content=ft.Text(f"{e}", color=ft.Colors.WHITE),
                             bgcolor=ft.Colors.RED_ACCENT_400))
                         return
-
+                    message = data['message']
                     self.current_page.show_dialog(ft.SnackBar(
-                        content=ft.Text(f"Success, saved to: {download_path}", color=ft.Colors.WHITE),
+                        content=ft.Text(f"{message}", color=ft.Colors.WHITE),
                         bgcolor=ft.Colors.GREEN_ACCENT_400))
 
             except Exception as e:

@@ -1,0 +1,68 @@
+{
+    "project": {
+        "name": "iLibrary",
+        "version": "0.0.4",
+        "description": "Streamline IBM i tool with automated Save File management and instant user profile insights.",
+        "readme": "README.md",
+        "requires-python": ">=3.9",
+        "authors": [
+            {
+                "name": "Andreas Legner",
+                "email": "ilibrary@legner.beer"
+            }
+        ],
+        "dependencies": [
+            "flet<=0.84.0",
+            "python-dotenv==1.2.2",
+            "iLibrary<=0.0.16",
+            "paramiko",
+            "pyodbc==5.3.0",
+            "certifi",
+            "typing_extensions==4.15.0",
+            "binaryornot==0.4.4"
+        ]
+    },
+    "tool": {
+        "flet": {
+            "org": "legner.beer",
+            "product": "iLibrary",
+            "company": "legner.beer",
+            "copyright": "Copyright (C) 2025-2026 by legner.beer",
+            "app": {
+                "path": "src"
+            },
+            "macos": {
+                "entitlements": {
+                    "com.apple.security.network.client": true
+                }
+            }
+        },
+        "uv": {
+            "dev-dependencies": [
+                "flet<=0.84.0",
+                "python-dotenv==1.2.2",
+                "iLibrary<=0.0.16",
+                "paramiko",
+                "pyodbc==5.3.0",
+                "certifi",
+                "typing_extensions==4.15.0",
+                "binaryornot==0.4.4"
+            ]
+        },
+        "poetry": {
+            "package-mode": false,
+            "group": {
+                "dev": {
+                    "dependencies": {
+                        "flet": {
+                            "extras": [
+                                "all"
+                            ],
+                            "version": "0.82.0"
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

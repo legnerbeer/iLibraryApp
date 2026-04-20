@@ -1,5 +1,6 @@
 import os
 import json
+from datetime import datetime
 from pathlib import Path
 
 import flet as ft
@@ -21,7 +22,7 @@ class Info(ft.Column):
         self.current_page = page
         self.content_manager = content_manager
         self.library = library
-        self.env_file_path = Path(__file__).parent / ".env"
+        self.env_file_path = Path(__file__).parent.parent / ".env"
         self.ENCRYPTION_KEY_STR = None
         self.db_credentials = None
         self.DB_DRIVER = None
@@ -62,7 +63,7 @@ class Info(ft.Column):
 
     async def _go_back(self):
         try:
-            from content.all_libraries import AllLibraries
+            from content.LibraryStuff.all_libraries import AllLibraries
             await self.content_manager(AllLibraries(
                 self.current_page,
                 content_manager=self.content_manager))
@@ -114,26 +115,13 @@ class Info(ft.Column):
 
             with Library(self.DB_USER, self.DB_PASSWORD, self.DB_SYSTEM, self.DB_DRIVER) as self.lib:
                 # Fetch data
-                result = self.lib.getLibraryInfo(library=self.library, wantJson=True)
+                result = self.lib.getLibraryInfo(library=self.library)
                 qFiles = self.lib.getFileInfo(library=self.library, qFiles=False)
 
-                # --- ROBUST DATA PARSING ---
-                # This handles the "Expecting value" error by checking types before loading
-                def safe_parse(input_data):
-                    if input_data is None:
-                        return []
-                    if isinstance(input_data, (list, dict)):
-                        return input_data
-                    if isinstance(input_data, str) and input_data.strip() == "":
-                        return []
-                    try:
-                        return json.loads(input_data)
-                    except Exception as e:
-                        # If it's not JSON, return it as a list with an error message
-                        return [{"error": f"Parse Error: {str(e)}", "raw": str(input_data)}]
-
-                data = safe_parse(qFiles)
-                library_info_data = safe_parse(result)
+                data = json.loads(qFiles)
+                data = data["data"]
+                result = json.loads(result)
+                library_info_data = result['data']
 
                 # --- UI CONSTRUCTION ---
                 result_text = ft.DataTable(
@@ -173,6 +161,21 @@ class Info(ft.Column):
                     for key, value in item.items():
                         if not value or value == "None" or key == "OBJNAME":
                             continue
+                        if key in ["OBJCREATED",
+                                   "LAST_USED_TIMESTAMP",
+                                   "LAST_RESET_TIMESTAMP",
+                                   "CHANGE_TIMESTAMP",
+                                   "SOURCE_TIMESTAMP",
+                                   "SAVE_TIMESTAMP",
+                                   "RESTORE_TIMESTAMP",
+                                   "SAVE_WHILE_ACTIVE_TIMESTAMP",
+                                   "JOURNAL_START_TIMESTAMP"]:
+                            try:
+                                dt_object = datetime.strptime(value, "%Y-%m-%d %H:%M:%S")
+                                value = dt_object.strftime("%A, %b %d, %Y")
+                            except (ValueError, TypeError):
+                                value = None
+
                         content_column.rows.append(
                             ft.DataRow(
                                 cells=[
@@ -256,17 +259,17 @@ class Info(ft.Column):
                                     ),
                                     ft.Container(
                                         width=130, height=130,
-                                        bgcolor="#00ffe5",
+                                        bgcolor=ft.Colors.PRIMARY,
                                         shape=ft.BoxShape.CIRCLE,
                                         alignment=ft.Alignment.CENTER,
-                                        shadow=ft.BoxShadow(blur_radius=8, color="#00ffe5"),
-                                        content=ft.Text(self.library[0:2].upper(), color="black",
+                                        shadow=ft.BoxShadow(blur_radius=8, color=ft.Colors.PRIMARY),
+                                        content=ft.Text(self.library[0:2].upper(), color=ft.Colors.ON_PRIMARY,
                                                         weight=ft.FontWeight.BOLD, size=40),
                                     ),
                                     ft.Container(
                                         padding=ft.Padding.only(top=30),
                                         content=ft.IconButton(
-                                            bgcolor="#00ffe5", icon_color="black", icon=ft.Icons.DOWNLOAD,
+                                            bgcolor=ft.Colors.PRIMARY, icon_color=ft.Colors.ON_PRIMARY, icon=ft.Icons.DOWNLOAD,
                                             on_click=lambda e: self.current_page.run_task(self._get_single_savefile,
                                                                                   self.library)
                                         ),
@@ -311,10 +314,10 @@ class Info(ft.Column):
                                download_path: str):
             try:
                 self.current_page.pop_dialog()
-
+                data = None
                 with Library(self.DB_USER, self.DB_PASSWORD, self.DB_SYSTEM, self.DB_DRIVER) as lib:
                     try:
-                        lib.saveLibrary(
+                        data = lib.saveLibrary(
                             library=library_name,
                             saveFileName=savefile_name,
                             description=description,
@@ -322,19 +325,26 @@ class Info(ft.Column):
                             remPath=f'/home/{self.DB_USER.upper()}/',
                             authority=authority,
                             version=version,
-                            remSavf=True,
                             getZip=True,
                             port=self.DB_PORT
                         )
+
                         self.current_page.run_task(ft.SharedPreferences().set, 'download_path', download_path)
+                        data = json.loads(data)
+
+                        if data['code'] != 200:
+                            raise Exception(data['error']['details'])
+
                     except Exception as e:
                         self.current_page.show_dialog(ft.SnackBar(
                             content=ft.Text(f"Failed: {e}", color=ft.Colors.WHITE),
                             bgcolor=ft.Colors.RED_ACCENT_400))
                         return
 
+                    message = data["message"]
+
                     self.current_page.show_dialog(ft.SnackBar(
-                        content=ft.Text(f"Success, saved to: {download_path}", color=ft.Colors.WHITE),
+                        content=ft.Text(f"{message}", color=ft.Colors.WHITE),
                         bgcolor=ft.Colors.GREEN_ACCENT_400))
 
             except Exception as e:

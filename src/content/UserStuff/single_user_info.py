@@ -1,5 +1,6 @@
 import os
 import json
+from datetime import datetime
 from pathlib import Path
 
 import flet as ft
@@ -20,7 +21,7 @@ class SingleUserInfo(ft.Column):
         self.current_page = page
         self.content_manager = content_manager
         self.user = user
-        self.env_file_path = Path(__file__).parent / ".env"
+        self.env_file_path = Path(__file__).parent.parent / ".env"
         self.ENCRYPTION_KEY_STR = None
         self.db_credentials = None
         self.DB_DRIVER = None
@@ -42,6 +43,7 @@ class SingleUserInfo(ft.Column):
 
         self.progress_bar.visible = True
         self.progress_bar_container.visible = True
+
         self.current_page.update()
         self.lib.conn.close()
 
@@ -60,7 +62,7 @@ class SingleUserInfo(ft.Column):
 
     async def _go_back(self):
         try:
-            from content.all_users import AllUsers
+            from content.UserStuff.all_users import AllUsers
             await self.content_manager(AllUsers(
                 self.current_page,
                 content_manager=self.content_manager))
@@ -111,24 +113,10 @@ class SingleUserInfo(ft.Column):
 
             with (User(self.DB_USER, self.DB_PASSWORD, self.DB_SYSTEM, self.DB_DRIVER) as self.User):
                 # Fetch data
-                result = self.User.getSingleUserInformation(username=str(self.user), wantJson=True)
+                result = self.User.getSingleUserInformation(username=str(self.user))
+                result = json.loads(result)
+                data = result['data']
 
-                # --- ROBUST DATA PARSING ---
-                # This handles the "Expecting value" error by checking types before loading
-                def safe_parse(input_data):
-                    if input_data is None:
-                        return []
-                    if isinstance(input_data, (list, dict)):
-                        return input_data
-                    if isinstance(input_data, str) and input_data.strip() == "":
-                        return []
-                    try:
-                        return json.loads(input_data)
-                    except Exception as e:
-                        # If it's not JSON, return it as a list with an error message
-                        return [{"error": f"Parse Error: {str(e)}", "raw": str(input_data)}]
-
-                data = safe_parse(result)
                #for key, value in data.items():
                 #
                 # # --- UI CONSTRUCTION ---
@@ -164,7 +152,9 @@ class SingleUserInfo(ft.Column):
                 # # Ensure user_info_data is a dict (if it was a list, take the first item)
                 info_dict = data[0] if isinstance(data, list) else data
 
+                #Formating the Info About the User
                 for key, value in info_dict.items():
+                    #set up the Storage
                     if key in ["MAXIMUM_ALLOWED_STORAGE", "STORAGE_USED"] and value:
                         try:
                             mb = float(value) / 1000
@@ -172,6 +162,23 @@ class SingleUserInfo(ft.Column):
                         except:
                             pass
 
+                    #format the Time
+                    if key in ["PREVIOUS_SIGNON",
+                               "PASSWORD_CHANGE_DATE",
+                               "DATE_PASSWORD_EXPIRES",
+                               "TOTP_KEY_LAST_CHANGED",
+                               "USER_EXPIRATION_DATE",
+                               "CREATION_TIMESTAMP",
+                               "LAST_RESET_TIMESTAMP",
+                               "LAST_USED_TIMESTAMP"]:
+
+                        try:
+                            dt_object = datetime.strptime(value, "%Y-%m-%d %H:%M:%S")
+                            value = dt_object.strftime("%A, %b %d, %Y")
+                        except (ValueError, TypeError):
+                            value = None
+
+                    #if Value not None append it to the User Panel
                     if value is not None:
                         result_text.rows.append(
                             ft.DataRow(
@@ -266,17 +273,17 @@ class SingleUserInfo(ft.Column):
                                     ),
                                     ft.Container(
                                         width=130, height=130,
-                                        bgcolor="#00ffe5",
+                                        bgcolor=ft.Colors.PRIMARY,
                                         shape=ft.BoxShape.CIRCLE,
                                         alignment=ft.Alignment.CENTER,
-                                        shadow=ft.BoxShadow(blur_radius=8, color="#00ffe5"),
-                                        content=ft.Text(self.user[0:2].upper(), color="black",
+                                        shadow=ft.BoxShadow(blur_radius=8, color=ft.Colors.PRIMARY),
+                                        content=ft.Text(self.user[0:2].upper(), color=ft.Colors.ON_PRIMARY,
                                                         weight=ft.FontWeight.BOLD, size=40),
                                     ),
                                     ft.Container(
                                         padding=ft.Padding.only(top=30),
                                         content=ft.IconButton(
-                                            bgcolor="#00ffe5", icon_color="black", icon=ft.Icons.OUTGOING_MAIL,
+                                            bgcolor=ft.Colors.PRIMARY, icon_color=ft.Colors.ON_PRIMARY, icon=ft.Icons.OUTGOING_MAIL,
                                             on_click=lambda e: self.current_page.run_task(self._send_message_to_user),
                                             tooltip="Send Message"
                                         ),
