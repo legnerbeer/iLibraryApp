@@ -94,7 +94,12 @@ class AllLibraries(ft.Column):
         self.lv = ft.ListView()
         self.searchbar = ft.SearchBar(
             view_elevation=4,
-            divider_color=ft.Colors.PRIMARY,
+            bar_text_style=ft.TextStyle(color=ft.Colors.ON_TERTIARY_CONTAINER),
+            view_header_text_style=ft.TextStyle(color=ft.Colors.ON_TERTIARY_CONTAINER),
+            view_hint_text_style=ft.TextStyle(color=ft.Colors.ON_TERTIARY_CONTAINER),
+            bar_bgcolor = ft.Colors.TERTIARY_CONTAINER,
+            view_bgcolor=ft.Colors.TERTIARY_CONTAINER,
+            divider_color=ft.Colors.ON_TERTIARY_CONTAINER,
             bar_hint_text="Search for Library...",
             view_hint_text="Suggestions...",
             on_change=self.handle_change,  # use method, not function

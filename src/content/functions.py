@@ -99,15 +99,15 @@ async def run_query_after_settings(page: ft.Page, page_content: ft.Container):
             items = raw_data.get('data', [])
 
             values = [
-                (item.get('OBJNAME'), item.get('OBJCREATED'))
+                (item.get('OBJNAME'), item.get('OBJCREATED'), item.get("TEXT"))
                 for item in items if isinstance(item, dict)
             ]
 
             # Use the manager to refresh the table
             db_mgr.refresh_table(
                 table_name="LIBRARY_METADATA",
-                schema="(OBJNAME TEXT, OBJCREATED TEXT)",
-                insert_sql="INSERT INTO LIBRARY_METADATA VALUES (?, ?)",
+                schema="(OBJNAME TEXT, OBJCREATED TEXT, DESCRIPTION TEXT)",
+                insert_sql="INSERT INTO LIBRARY_METADATA VALUES (?, ?, ?)",
                 data=values
             )
             logger.info(f"Library Sync: {len(values)} items processed.")
@@ -151,15 +151,15 @@ async def _sync_library_data(page, creds, db_path):
             items = raw_data.get('data', [])
 
             values = [
-                (item.get('OBJNAME'), item.get('OBJCREATED'))
+                (item.get('OBJNAME'), item.get('OBJCREATED'), item.get('TEXT'))
                 for item in items if isinstance(item, dict)
             ]
 
             _execute_db_transaction(
                 db_path,
                 "DROP TABLE IF EXISTS LIBRARY_METADATA",
-                "CREATE TABLE LIBRARY_METADATA (OBJNAME VARCHAR(128), OBJCREATED TIMESTAMP)",
-                "INSERT INTO LIBRARY_METADATA (OBJNAME, OBJCREATED) VALUES (?, ?)",
+                "CREATE TABLE LIBRARY_METADATA (OBJNAME VARCHAR(128), OBJCREATED TIMESTAMP, DESCRIPTION TEXT)",
+                "INSERT INTO LIBRARY_METADATA (OBJNAME, OBJCREATED, DESCRIPTION) VALUES (?, ?, ?)",
                 values
             )
             logger.info("Library metadata synced successfully.")
