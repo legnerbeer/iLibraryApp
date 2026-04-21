@@ -158,7 +158,7 @@ async def _sync_library_data(page, creds, db_path):
             _execute_db_transaction(
                 db_path,
                 "DROP TABLE IF EXISTS LIBRARY_METADATA",
-                "CREATE TABLE LIBRARY_METADATA (OBJNAME VARCHAR(128), OBJCREATED TIMESTAMP, DESCRIPTION TEXT)",
+                "CREATE TABLE LIBRARY_METADATA (OBJNAME TEXT PRIMARY KEY, OBJCREATED TEXT, DESCRIPTION TEXT)",
                 "INSERT INTO LIBRARY_METADATA (OBJNAME, OBJCREATED, DESCRIPTION) VALUES (?, ?, ?)",
                 values
             )
@@ -181,7 +181,7 @@ async def _sync_user_data(page, creds, db_path):
             _execute_db_transaction(
                 db_path,
                 "DROP TABLE IF EXISTS USER_METADATA",
-                "CREATE TABLE USER_METADATA (AUTHORIZATION_NAME VARCHAR(10), CREATION_TIMESTAMP TIMESTAMP, TEXT_DESCRIPTION VARCHAR(50))",
+                "CREATE TABLE USER_METADATA (AUTHORIZATION_NAME TEXT PRIMARY KEY, CREATION_TIMESTAMP TEXT, TEXT_DESCRIPTION TEXT)",
                 "INSERT INTO USER_METADATA (AUTHORIZATION_NAME, CREATION_TIMESTAMP, TEXT_DESCRIPTION) VALUES (?, ?, ?)",
                 values
             )
