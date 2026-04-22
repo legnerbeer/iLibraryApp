@@ -25,7 +25,7 @@ jobs:
           if (Test-Path requirements.txt) { pip install -r requirements.txt }
 
       - name: Build EXE
-        run: ppython build_tool.py windows
+        run: python build_tool.py windows
 
 
       - name: Upload EXE as Artifact
