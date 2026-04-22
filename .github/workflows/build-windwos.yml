@@ -60,7 +60,7 @@ jobs:
 
         if: startsWith(github.ref, 'refs/tags/')
         with:
-          files: MeinProgramm_Windows.zip
+          files: iLibrary-Windows.zip
           name: Release ${{ github.ref_name }}
           draft: false
           prerelease: false
