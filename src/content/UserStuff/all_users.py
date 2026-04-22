@@ -14,7 +14,7 @@ class AllUsers(ft.Column):
     def __init__(self, page: ft.Page, content_manager):
         super().__init__(
             scroll=ft.ScrollMode.ADAPTIVE,
-            horizontal_alignment=ft.CrossAxisAlignment.START,
+            horizontal_alignment=ft.CrossAxisAlignment.CENTER
 
         )
         self.current_page = page
@@ -64,7 +64,7 @@ class AllUsers(ft.Column):
             # 3. Defensive check: ensure user is treated as a string during filter
             DBConnect = sqlite3.connect(self.path_to_DB_file)
             cursor = DBConnect.cursor()
-            data_lib = cursor.execute("SELECT AUTHORIZATION_NAME FROM USER_METADATA WHERE AUTHORIZATION_NAME LIKE ? LIMIT 10", (f"%{query}%",))
+            data_lib = cursor.execute("SELECT AUTHORIZATION_NAME FROM USER_METADATA WHERE AUTHORIZATION_NAME LIKE ? LIMIT 50", (f"%{query}%",))
             raw_data = data_lib.fetchall()
             lv.controls.clear()
             for i in raw_data:
@@ -85,7 +85,7 @@ class AllUsers(ft.Column):
             cursor = conn.cursor()
 
             # 3. Fetch data
-            cursor.execute("SELECT AUTHORIZATION_NAME FROM USER_METADATA LIMIT 10")
+            cursor.execute("SELECT AUTHORIZATION_NAME FROM USER_METADATA LIMIT 50")
             data = cursor.fetchall()
             cursor.close()
         for i in data:
@@ -143,49 +143,7 @@ class AllUsers(ft.Column):
             else:
              pass
         else:
-            self.controls.append(
-                ft.Container(
-                    content=ft.Column(
-                        controls=[
-                            ft.Container(
-                                ft.Icon(ft.Icons.WARNING_AMBER_OUTLINED,
-                                        size=25,
-                                        color=ft.Colors.ON_ERROR_CONTAINER,
-
-                                        ),
-                                alignment=ft.Alignment.START,
-                                padding=ft.Padding.only(top=10),
-                            ),
-                            ft.Container(
-                                content=ft.Text("No Users Found",
-                                                size=15,
-                                                weight=ft.FontWeight.BOLD,
-                                                style=ft.TextStyle(color=ft.Colors.ON_ERROR_CONTAINER),
-                                                ),
-                                alignment=ft.Alignment.START,
-                            ),
-                            ft.Container(
-                                content=ft.OutlinedButton(
-                                    content=ft.Text("Go to Settings",
-                                                    style=ft.TextStyle(
-                                                        color=ft.Colors.ON_ERROR_CONTAINER,
-                                                    ),
-                                                    ),
-                                    on_click=lambda e: self.current_page.run_task(self._go_to_settings),
-                                ),
-                                alignment=ft.Alignment.START,
-                                padding=ft.Padding.only(bottom=10),
-                            )
-                        ],
-                        alignment=ft.MainAxisAlignment.START,
-                    ),
-                    bgcolor=ft.Colors.ERROR_CONTAINER,
-                    width=1500,
-                    border_radius=10,  # Optional: makes the error box look cleaner
-                )
-            )
-            self.progress_bar_container.visible = False
-            self.current_page.update()
+            self._show_loading_status("No users found.\nWaiting for sync...")
             return
 
         self.update()
@@ -235,7 +193,7 @@ class AllUsers(ft.Column):
                 data = cursor.fetchall()
 
                 if not data:
-                    self._show_loading_status("No users found. Waiting for sync...")
+                    self._show_loading_status("No users found.\nWaiting for sync...")
                     return
 
                 # 4. Loop through data and build UI
@@ -286,7 +244,7 @@ class AllUsers(ft.Column):
 
         except sqlite3.OperationalError as e:
             print(f"Database access error: {e}")
-            self._show_loading_status("Database Busy... Please wait.")
+            self._show_loading_status("Database Busy...\nPlease wait.")
             return
 
         # 5. UI Updates
@@ -296,9 +254,22 @@ class AllUsers(ft.Column):
         self.searchbar.visible = True
         self.update()
 
-    def _show_loading_status(self, text):
-        """Helper to show status inside the list container without crashing."""
-        self.list_container.controls.append(ft.ListTile(title=ft.Text(text)))
+    def _show_loading_status(self, message):
+        """Shows an error/empty message."""
+        self.list_container.controls.append(
+            ft.Container(
+                bgcolor=ft.Colors.PRIMARY_CONTAINER,
+                border_radius=8,
+                content=ft.Row([
+                    ft.ProgressRing(color=ft.Colors.ON_PRIMARY_CONTAINER),
+                    ft.Text(message, color=ft.Colors.ON_PRIMARY_CONTAINER)]),
+                padding=20,
+                alignment=ft.Alignment.CENTER_LEFT
+            )
+        )
+        self.list_container.visible = True
+        if self.list_container not in self.controls:
+            self.controls.append(self.list_container)
         self.progress_bar_container.visible = False
         self.update()
 

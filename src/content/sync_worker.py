@@ -31,6 +31,9 @@ class SyncWorker:
 
         # Create storage directory if it doesn't exist
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
+        with open("worker.pid", "w") as f:
+            f.write(str(os.getpid()))
+
 
     def _upsert_data(self, table_name, schema, upsert_sql, data_rows):
         """

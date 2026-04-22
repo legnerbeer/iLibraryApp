@@ -42,16 +42,16 @@ def setup_logger():
 # --- Main Application Entry Point ---
 async def main(page: ft.Page):
     setup_logger()
-    # 1. Initialize Worker
+    #Initialize Worker
     worker = SyncWorker(page=page)
 
-    # 2. Start the background task
-    # run_task returns a task object that Flet manages
     page.run_task(worker.main_loop)
 
-    # 3. Define the Shutdown Logic
+    #Shutdown
     def handle_cleanup(e):
         print("Application closing. Signaling worker to stop...")
+        if os.path.exists('worker.pid'):
+            os.unlink('worker.pid')
         # Tell the worker to stop its loop
         worker.running = False
 
@@ -131,23 +131,32 @@ async def main(page: ft.Page):
     ENCRYPTION_KEY_STR = get_or_generate_key(env_file_path)
     load_dotenv(env_file_path, override=True)
     credentials_str = os.getenv("ENCRYPTED_DB_CREDENTIALS")
+
+
+    async def _go_to_settings_page_from_error():
+        rail.selected_index = 2
+        page.update()
+        await route_to(Settings(page, content_manager=route_to))
+
+
     if not credentials_str:
 
         error_banner = ft.Banner(
-            bgcolor=ft.Colors.ERROR_CONTAINER,
-            leading=ft.Icon(ft.Icons.ERROR_OUTLINE, color=ft.Colors.ERROR, size=40),
+            #bgcolor = ft.Colors.SURFACE,
+            leading=ft.Icon(ft.Icons.ERROR_OUTLINE, color=ft.Colors.ON_ERROR_CONTAINER, size=40),
             content=ft.Text(
                 value="No Database Connection. Please check Credentials in Settings.",
-                color=ft.Colors.ON_ERROR_CONTAINER,
+                # color=ft.Colors.ON_ERROR_CONTAINER,
             ),
             actions=[
-                ft.TextButton(
+                ft.OutlinedButton(
                     "Go to Settings",
-                    style=ft.ButtonStyle(color=ft.Colors.ON_ERROR_CONTAINER),
-                    on_click=lambda e: (page.run_task(route_to, Settings(page, content_manager=route_to))),
+                    on_click=lambda e: page.run_task(_go_to_settings_page_from_error),
                 ),
             ],
         )
+
+        page.update()
         page.show_dialog(error_banner)
     page.add(
         ft.Row(
@@ -169,6 +178,7 @@ async def main(page: ft.Page):
     #page.run_task(run_sync, page)
 
     # Load Default View (Libraries)
+
     await navigation_bar_changed(types.SimpleNamespace(control=rail))
 
 

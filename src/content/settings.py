@@ -1,4 +1,8 @@
+import asyncio
+import logging
 import os
+import signal
+import sqlite3
 
 import flet as ft
 from pathlib import Path
@@ -87,12 +91,7 @@ class Settings(ft.Column):
 
     async def _create_app_bar(self):
         self.current_page.appbar = ft.AppBar(
-            title=ft.Text("Settings"),
-            # actions=[
-            #     # Reference the instance variable here
-            #     ft.Container(content=ft.Text(value=None, badge=self.badge_server_status)),
-            #     ft.Container(width=60)
-            # ]
+            title=ft.Text("Settings")
         )
         self.current_page.update()
 
@@ -330,14 +329,44 @@ class Settings(ft.Column):
 
     async def _clear_app_data(self, e):
         """Clears persistent data then closes application window"""
+        # 1. Clear SharedPreferences
         await ft.SharedPreferences().clear()
         self.clear_app_data_modal.open = False
+
+        # 2. Stop the worker gracefully (instead of os.kill)
+        # This assumes you stored the worker in page.data as suggested earlier
+        page_data = self.current_page.data or {}
+        if "worker" in page_data:
+            self.current_page.data["worker"].running = False
+            # Give the worker a tiny window to finish its current loop
+            await asyncio.sleep(0.1)
+
+        # 3. Handle .env file
         if os.path.isfile(self.env_file_path):
-            os.remove(self.env_file_path)
-        if os.path.exists(Path(__file__).parent / ".auth"/ "libraries_metadata.db"):
-            os.remove(Path(__file__).parent / ".auth"/ "libraries_metadata.db")
-        await self.current_page.window.close()
+            try:
+                os.remove(self.env_file_path)
+            except Exception as ex:
+                logging.error(f"Could not remove env file: {ex}")
+
+        # 4. Handle Database
+        db_path = Path(__file__).parent / ".auth" / "libraries_metadata.db"
+        if db_path.exists():
+            try:
+                # Use a fresh connection and ensure it closes
+                with sqlite3.connect(db_path, timeout=10) as conn:
+                    cursor = conn.cursor()
+                    cursor.execute("DELETE FROM LIBRARY_METADATA;")
+                    cursor.execute("DELETE FROM USER_METADATA;")
+                    conn.commit()
+                # The 'with' block handles conn.close() automatically
+            except sqlite3.ProgrammingError:
+                logging.warning("Database was already closed/busy.")
+            except Exception as ex:
+                logging.error(f"DB Clear Error: {ex}")
+
+        # 5. UI Cleanup and Close
         self.current_page.update()
+        await self.current_page.window.close()
 
     async def _about_app(self):
 
@@ -374,7 +403,7 @@ class Settings(ft.Column):
                                 ft.DataRow(
                                     cells=[
                                         ft.DataCell(ft.Text("Email: ", size=15, weight=ft.FontWeight.BOLD)),
-                                        ft.DataCell(ft.Text(data["project"]["authors"][0]["email"])),
+                                        ft.DataCell(ft.Text(data["project"]["authors"][0]["email"], selectable=True,)),
                                     ]
                                 ),
                                 ft.DataRow(
@@ -382,8 +411,8 @@ class Settings(ft.Column):
                                         ft.DataCell(ft.Text("Github: ", size=15, weight=ft.FontWeight.BOLD)),
                                         ft.DataCell(
                                             ft.Text(spans=[ft.TextSpan(
-                                                        text="https://github.com/legnerbeer",
-                                                        url="https://github.com/legnerbeer",
+                                                        text="https://github.com/legnerbeer/iLibraryApp",
+                                                        url="https://github.com/legnerbeer/iLibraryApp",
                                                     )],
                                                     selectable=True,
                                            )

@@ -14,7 +14,7 @@ class AllLibraries(ft.Column):
         """Initializes libraries UI; starts asynchronous credential loading"""
         super().__init__(
             scroll=ft.ScrollMode.ADAPTIVE,
-            horizontal_alignment=ft.CrossAxisAlignment.START,
+            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
 
         )
         self.current_page = page
@@ -66,7 +66,7 @@ class AllLibraries(ft.Column):
         # We check if 'query' is inside the 'library' name
         DBConnect = sqlite3.connect(self.path_to_DB_file)
         cursor = DBConnect.cursor()
-        data_lib = cursor.execute("SELECT OBJNAME FROM LIBRARY_METADATA WHERE OBJNAME LIKE ? LIMIT 10", (f"%{query}%",))
+        data_lib = cursor.execute("SELECT OBJNAME FROM LIBRARY_METADATA WHERE OBJNAME LIKE ? LIMIT 50", (f"%{query}%",))
         raw_data = data_lib.fetchall()
 
         # 5. Clear and Repopulate
@@ -93,23 +93,27 @@ class AllLibraries(ft.Column):
         # Create ListView and SearchBar
         self.lv = ft.ListView()
         #Fille the Searchbar for the First 10 Librarys
-        with sqlite3.connect(self.path_to_DB_file, timeout=10) as conn:
-            cursor = conn.cursor()
+        try:
+            with sqlite3.connect(self.path_to_DB_file, timeout=10) as conn:
+                cursor = conn.cursor()
 
-            # 3. Fetch data
-            cursor.execute("SELECT OBJNAME FROM LIBRARY_METADATA LIMIT 10")
-            data = cursor.fetchall()
-            cursor.close()
-        for i in data:
-            self.lv.controls.append(
-                ft.ListTile(
-                    title=ft.Text(i[0]),  # Force to string
-                    on_click=lambda _, name=str(i[0]).replace("'", ""): self.current_page.run_task(
-                        self._show_single_library_info, name
+                # 3. Fetch data
+                cursor.execute("SELECT OBJNAME FROM LIBRARY_METADATA LIMIT 50")
+                data = cursor.fetchall()
+                cursor.close()
+                if data is None:
+                    raise
+            for i in data:
+                self.lv.controls.append(
+                    ft.ListTile(
+                        title=ft.Text(i[0]),  # Force to string
+                        on_click=lambda _, name=str(i[0]).replace("'", ""): self.current_page.run_task(
+                            self._show_single_library_info, name
+                        )
                     )
                 )
-            )
-
+        except:
+            pass
         self.searchbar = ft.SearchBar(
             view_elevation=4,
             bar_text_style=ft.TextStyle(color=ft.Colors.ON_SECONDARY_CONTAINER),
@@ -147,47 +151,8 @@ class AllLibraries(ft.Column):
             await self._rebuild_libraries()
         else:
             # Displays error message and settings button when no libraries
-            self.controls.append(
-                ft.Container(
-                    content=ft.Column(
-                        controls=[
-                            ft.Container(
-                                ft.Icon(ft.Icons.WARNING_AMBER_OUTLINED,
-                                    size=25,
-                                    color=ft.Colors.ON_ERROR_CONTAINER,
 
-                                ),
-                                alignment=ft.Alignment.START,
-                                padding=ft.Padding.only(top=10),
-                            ),
-                           ft.Container(
-                               content=ft.Text("No Libraries Found",
-                                               size=15,
-                                               weight=ft.FontWeight.BOLD,
-                                               style=ft.TextStyle(color=ft.Colors.ON_ERROR_CONTAINER),
-                                    ),
-                               alignment=ft.Alignment.START,
-                           ),
-                            ft.Container(
-                                content=ft.OutlinedButton(
-                                    content=ft.Text("Go to Settings",
-                                                    style=ft.TextStyle(
-                                                    color=ft.Colors.ON_ERROR_CONTAINER,
-                                        ),
-                                    ),
-                                    on_click=lambda e: self.current_page.run_task(self._go_to_settings),
-                                ),
-                                alignment=ft.Alignment.START,
-                                padding=ft.Padding.only(bottom=10),
-                            )
-                        ],
-                        alignment=ft.MainAxisAlignment.START,
-                    ),
-                    bgcolor=ft.Colors.ERROR_CONTAINER,
-                    width=1500,
-                    border_radius=10,  # Optional: makes the error box look cleaner
-                )
-            )
+            self._show_empty_state('No libraries found.\nWaiting for sync...')
             self.progress_bar_container.visible = False
             self.current_page.update()
             return
@@ -195,12 +160,6 @@ class AllLibraries(ft.Column):
 
 
         self.update()
-        # 1. Faster Task Initiation: Check a flag first to avoid redundant imports/tasks
-        # if not getattr(self.page, "sync_started", False):
-        #     page_content = ft.Container(expand=True)
-        #     #from main import run_sync
-        #     self.page.run_task(run_sync, self.current_page)
-        #     self.page.sync_started = True
 
     async def _create_app_bar(self):
         """
@@ -241,14 +200,14 @@ class AllLibraries(ft.Column):
                 )
                 if not cursor.fetchone():
                     logger.warning("LIBRARY_METADATA table not found. Waiting for sync...")
-                    self._show_syncing_state()
+                    await self._show_syncing_state()
                     return
 
                 # 3. Fetch data
                 cursor.execute("SELECT OBJNAME, OBJCREATED, DESCRIPTION FROM LIBRARY_METADATA")
                 data = cursor.fetchall()
                 if not data:
-                    self._show_empty_state("No libraries found in database.")
+                    self._show_empty_state("No libraries found.\nWaiting for sync...")
                     return
 
                 # 4. Build UI Controls
@@ -331,27 +290,24 @@ class AllLibraries(ft.Column):
         self.searchbar.visible = True
         self.update()
 
-    def _show_syncing_sttate(self):
-        """Shows a message when the database is being initialized."""
-        self.list_container.controls.append(
-            ft.ListTile(
-                leading=ft.ProgressRing(width=20, height=20),
-                title=ft.Text("Syncing data from server..."),
-                subtitle=ft.Text("This may take a moment on the first run.")
-            )
-        )
-        self.progress_bar_container.visible = False
-        self.update()
+
 
     def _show_empty_state(self, message):
         """Shows an error/empty message."""
         self.list_container.controls.append(
             ft.Container(
-                content=ft.Text(message, color=ft.Colors.ERROR),
+                bgcolor=ft.Colors.PRIMARY_CONTAINER,
+                border_radius=8,
+                content=ft.Row([
+                    ft.ProgressRing(color=ft.Colors.ON_PRIMARY_CONTAINER),
+                    ft.Text(message,color=ft.Colors.ON_PRIMARY_CONTAINER)]),
                 padding=20,
-                alignment=ft.Alignment.START
+                alignment=ft.Alignment.CENTER_LEFT
             )
         )
+        self.list_container.visible = True
+        if self.list_container not in self.controls:
+            self.controls.append(self.list_container)
         self.progress_bar_container.visible = False
         self.update()
     # --------------------------------------------------------
@@ -498,3 +454,7 @@ class AllLibraries(ft.Column):
         self.current_page.update()
         from content.settings import Settings
         await self.content_manager(Settings(self.current_page, self.content_manager))
+
+    async def _show_syncing_state(self):
+        self.progress_bar_container.visible = True
+        self.update()
