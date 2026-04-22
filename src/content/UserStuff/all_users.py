@@ -14,7 +14,7 @@ class AllUsers(ft.Column):
     def __init__(self, page: ft.Page, content_manager):
         super().__init__(
             scroll=ft.ScrollMode.ADAPTIVE,
-            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+            horizontal_alignment=ft.CrossAxisAlignment.START,
 
         )
         self.current_page = page
@@ -35,7 +35,7 @@ class AllUsers(ft.Column):
         self.list_container = ft.Column()
         self.input_card = self.list_container
         self.progress_bar = ft.ProgressRing()
-        self.progress_bar_container = ft.Container(self.progress_bar, alignment=ft.Alignment.CENTER)
+        self.progress_bar_container = ft.Container(self.progress_bar, alignment=ft.Alignment.TOP_CENTER)
         self.controls.append(self.progress_bar_container)
 
         # Start initialization
@@ -153,7 +153,7 @@ class AllUsers(ft.Column):
                                         color=ft.Colors.ON_ERROR_CONTAINER,
 
                                         ),
-                                alignment=ft.Alignment.CENTER,
+                                alignment=ft.Alignment.START,
                                 padding=ft.Padding.only(top=10),
                             ),
                             ft.Container(
@@ -162,7 +162,7 @@ class AllUsers(ft.Column):
                                                 weight=ft.FontWeight.BOLD,
                                                 style=ft.TextStyle(color=ft.Colors.ON_ERROR_CONTAINER),
                                                 ),
-                                alignment=ft.Alignment.CENTER,
+                                alignment=ft.Alignment.START,
                             ),
                             ft.Container(
                                 content=ft.OutlinedButton(
@@ -173,11 +173,11 @@ class AllUsers(ft.Column):
                                                     ),
                                     on_click=lambda e: self.current_page.run_task(self._go_to_settings),
                                 ),
-                                alignment=ft.Alignment.CENTER,
+                                alignment=ft.Alignment.START,
                                 padding=ft.Padding.only(bottom=10),
                             )
                         ],
-                        alignment=ft.MainAxisAlignment.CENTER,
+                        alignment=ft.MainAxisAlignment.START,
                     ),
                     bgcolor=ft.Colors.ERROR_CONTAINER,
                     width=1500,

@@ -6,7 +6,6 @@ import socket
 import pyodbc
 from dotenv import load_dotenv, set_key
 from cryptography.fernet import Fernet
-import tomllib
 import flet as ft
 from iLibrary import Library, User
 
@@ -106,7 +105,7 @@ async def run_query_after_settings(page: ft.Page, page_content: ft.Container):
             # Use the manager to refresh the table
             db_mgr.refresh_table(
                 table_name="LIBRARY_METADATA",
-                schema="(OBJNAME TEXT, OBJCREATED TEXT, DESCRIPTION TEXT)",
+                schema="(OBJNAME TEXT PRIMARY KEY, OBJCREATED TEXT, DESCRIPTION TEXT)",
                 insert_sql="INSERT INTO LIBRARY_METADATA VALUES (?, ?, ?)",
                 data=values
             )
@@ -131,7 +130,7 @@ async def run_query_after_settings(page: ft.Page, page_content: ft.Container):
             # Use the manager to refresh the table
             db_mgr.refresh_table(
                 table_name="USER_METADATA",
-                schema="(AUTHORIZATION_NAME TEXT, CREATION_TIMESTAMP TEXT, TEXT_DESCRIPTION TEXT)",
+                schema="(AUTHORIZATION_NAME TEXT PRIMARY KEY, CREATION_TIMESTAMP TEXT, TEXT_DESCRIPTION TEXT)",
                 insert_sql="INSERT INTO USER_METADATA VALUES (?, ?, ?)",
                 data=values
             )
@@ -162,6 +161,7 @@ async def _sync_library_data(page, creds, db_path):
                 "INSERT INTO LIBRARY_METADATA (OBJNAME, OBJCREATED, DESCRIPTION) VALUES (?, ?, ?)",
                 values
             )
+
             logger.info("Library metadata synced successfully.")
     except Exception as e:
         logger.error(f"Library Sync Error: {e}")
@@ -185,6 +185,7 @@ async def _sync_user_data(page, creds, db_path):
                 "INSERT INTO USER_METADATA (AUTHORIZATION_NAME, CREATION_TIMESTAMP, TEXT_DESCRIPTION) VALUES (?, ?, ?)",
                 values
             )
+
             logger.info("User metadata synced successfully.")
     except Exception as e:
         logger.error(f"User Sync Error: {e}")
@@ -266,7 +267,7 @@ def load_app_info():
     try:
         with open("assets/app.json", "rb") as f:
             data = json.load(f)
-            print(data)
+
             return  data
     except Exception as e:
         print(e)

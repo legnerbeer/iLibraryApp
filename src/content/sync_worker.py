@@ -38,6 +38,7 @@ class SyncWorker:
         It will NOT drop the table or delete existing data.
         """
         try:
+
             # timeout=30 prevents "database is locked" errors if the UI is reading
             with sqlite3.connect(self.db_path, timeout=30) as conn:
                 cursor = conn.cursor()
@@ -46,7 +47,7 @@ class SyncWorker:
                 # Add this TEMPORARILY to your _upsert_data to fix the built app's DB
                 #cursor.execute(f"DROP TABLE IF EXISTS {table_name}")
                 cursor.execute(f"CREATE TABLE IF NOT EXISTS {table_name} {schema}")
-
+                #print(f"CREATE TABLE IF NOT EXISTS {table_name} {schema}")
                 # 2. Insert new records or update existing ones (Upsert)
                 # This requires a PRIMARY KEY defined in the schema
                 cursor.executemany(upsert_sql, data_rows)

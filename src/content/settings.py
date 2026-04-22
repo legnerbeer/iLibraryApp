@@ -340,6 +340,8 @@ class Settings(ft.Column):
         self.current_page.update()
 
     async def _about_app(self):
+
+
         data = load_app_info()
         self.current_page.show_dialog(
             ft.AlertDialog(
@@ -375,6 +377,19 @@ class Settings(ft.Column):
                                         ft.DataCell(ft.Text(data["project"]["authors"][0]["email"])),
                                     ]
                                 ),
+                                ft.DataRow(
+                                    cells=[
+                                        ft.DataCell(ft.Text("Github: ", size=15, weight=ft.FontWeight.BOLD)),
+                                        ft.DataCell(
+                                            ft.Text(spans=[ft.TextSpan(
+                                                        text="https://github.com/legnerbeer",
+                                                        url="https://github.com/legnerbeer",
+                                                    )],
+                                                    selectable=True,
+                                           )
+                                        ),
+                                    ]
+                                ),
                             ],
                             expand=True,
                         ),
@@ -383,6 +398,7 @@ class Settings(ft.Column):
                             controls=[
                             ]),
                         ft.Row(
+                            alignment=ft.MainAxisAlignment.CENTER,
                             controls=[
                                 ft.Text(data["tool"]["flet"]["copyright"]),
                             ]),
@@ -394,3 +410,10 @@ class Settings(ft.Column):
             )
         )
 
+    async def launch_external(self):
+        url_launcher = ft.UrlLauncher()
+        await url_launcher.launch_url(
+            url="https://github.com/legnerbeer",
+            mode=ft.LaunchMode.EXTERNAL_APPLICATION,
+            web_only_window_name="_blank",
+        )

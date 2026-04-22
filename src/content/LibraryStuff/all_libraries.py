@@ -14,7 +14,7 @@ class AllLibraries(ft.Column):
         """Initializes libraries UI; starts asynchronous credential loading"""
         super().__init__(
             scroll=ft.ScrollMode.ADAPTIVE,
-            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+            horizontal_alignment=ft.CrossAxisAlignment.START,
 
         )
         self.current_page = page
@@ -36,7 +36,7 @@ class AllLibraries(ft.Column):
         self.list_container = ft.Column()
         self.input_card = self.list_container
         self.progress_bar = ft.ProgressRing()
-        self.progress_bar_container = ft.Container(self.progress_bar, alignment=ft.Alignment.CENTER)
+        self.progress_bar_container = ft.Container(self.progress_bar, alignment=ft.Alignment.TOP_CENTER)
         self.controls.append(self.progress_bar_container)
 
         # Start initialization
@@ -109,6 +109,7 @@ class AllLibraries(ft.Column):
                     )
                 )
             )
+
         self.searchbar = ft.SearchBar(
             view_elevation=4,
             bar_text_style=ft.TextStyle(color=ft.Colors.ON_SECONDARY_CONTAINER),
@@ -156,7 +157,7 @@ class AllLibraries(ft.Column):
                                     color=ft.Colors.ON_ERROR_CONTAINER,
 
                                 ),
-                                alignment=ft.Alignment.CENTER,
+                                alignment=ft.Alignment.START,
                                 padding=ft.Padding.only(top=10),
                             ),
                            ft.Container(
@@ -165,7 +166,7 @@ class AllLibraries(ft.Column):
                                                weight=ft.FontWeight.BOLD,
                                                style=ft.TextStyle(color=ft.Colors.ON_ERROR_CONTAINER),
                                     ),
-                               alignment=ft.Alignment.CENTER,
+                               alignment=ft.Alignment.START,
                            ),
                             ft.Container(
                                 content=ft.OutlinedButton(
@@ -176,11 +177,11 @@ class AllLibraries(ft.Column):
                                     ),
                                     on_click=lambda e: self.current_page.run_task(self._go_to_settings),
                                 ),
-                                alignment=ft.Alignment.CENTER,
+                                alignment=ft.Alignment.START,
                                 padding=ft.Padding.only(bottom=10),
                             )
                         ],
-                        alignment=ft.MainAxisAlignment.CENTER,
+                        alignment=ft.MainAxisAlignment.START,
                     ),
                     bgcolor=ft.Colors.ERROR_CONTAINER,
                     width=1500,
@@ -348,7 +349,7 @@ class AllLibraries(ft.Column):
             ft.Container(
                 content=ft.Text(message, color=ft.Colors.ERROR),
                 padding=20,
-                alignment=ft.Alignment.CENTER
+                alignment=ft.Alignment.START
             )
         )
         self.progress_bar_container.visible = False
