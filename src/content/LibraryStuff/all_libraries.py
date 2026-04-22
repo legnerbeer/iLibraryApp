@@ -66,7 +66,7 @@ class AllLibraries(ft.Column):
         # We check if 'query' is inside the 'library' name
         DBConnect = sqlite3.connect(self.path_to_DB_file)
         cursor = DBConnect.cursor()
-        data_lib = cursor.execute("SELECT OBJNAME FROM LIBRARY_METADATA WHERE OBJNAME LIKE ?", (f"%{query}%",))
+        data_lib = cursor.execute("SELECT OBJNAME FROM LIBRARY_METADATA WHERE OBJNAME LIKE ? LIMIT 10", (f"%{query}%",))
         raw_data = data_lib.fetchall()
 
         # 5. Clear and Repopulate
@@ -92,14 +92,31 @@ class AllLibraries(ft.Column):
 
         # Create ListView and SearchBar
         self.lv = ft.ListView()
+        #Fille the Searchbar for the First 10 Librarys
+        with sqlite3.connect(self.path_to_DB_file, timeout=10) as conn:
+            cursor = conn.cursor()
+
+            # 3. Fetch data
+            cursor.execute("SELECT OBJNAME FROM LIBRARY_METADATA LIMIT 10")
+            data = cursor.fetchall()
+            cursor.close()
+        for i in data:
+            self.lv.controls.append(
+                ft.ListTile(
+                    title=ft.Text(i[0]),  # Force to string
+                    on_click=lambda _, name=str(i[0]).replace("'", ""): self.current_page.run_task(
+                        self._show_single_library_info, name
+                    )
+                )
+            )
         self.searchbar = ft.SearchBar(
             view_elevation=4,
-            bar_text_style=ft.TextStyle(color=ft.Colors.ON_TERTIARY_CONTAINER),
-            view_header_text_style=ft.TextStyle(color=ft.Colors.ON_TERTIARY_CONTAINER),
-            view_hint_text_style=ft.TextStyle(color=ft.Colors.ON_TERTIARY_CONTAINER),
-            bar_bgcolor = ft.Colors.TERTIARY_CONTAINER,
-            view_bgcolor=ft.Colors.TERTIARY_CONTAINER,
-            divider_color=ft.Colors.ON_TERTIARY_CONTAINER,
+            bar_text_style=ft.TextStyle(color=ft.Colors.ON_SECONDARY_CONTAINER),
+            view_header_text_style=ft.TextStyle(color=ft.Colors.ON_SECONDARY_CONTAINER),
+            view_hint_text_style=ft.TextStyle(color=ft.Colors.ON_SECONDARY_CONTAINER),
+            bar_bgcolor = ft.Colors.SECONDARY_CONTAINER,
+            view_bgcolor=ft.Colors.SECONDARY_CONTAINER,
+            divider_color=ft.Colors.ON_SECONDARY_CONTAINER,
             bar_hint_text="Search for Library...",
             view_hint_text="Suggestions...",
             on_change=self.handle_change,  # use method, not function

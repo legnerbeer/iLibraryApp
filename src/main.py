@@ -4,7 +4,6 @@ from pathlib import Path
 from dotenv import load_dotenv
 from datetime import datetime
 import flet as ft
-from iLibrary import Library, User
 from content.sync_worker import SyncWorker
 from content.functions import get_or_generate_key
 from content.LibraryStuff.all_libraries import AllLibraries
