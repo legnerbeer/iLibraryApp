@@ -64,7 +64,7 @@ class AllUsers(ft.Column):
             # 3. Defensive check: ensure user is treated as a string during filter
             DBConnect = sqlite3.connect(self.path_to_DB_file)
             cursor = DBConnect.cursor()
-            data_lib = cursor.execute("SELECT AUTHORIZATION_NAME FROM USER_METADATA WHERE AUTHORIZATION_NAME LIKE ?", (f"%{query}%",))
+            data_lib = cursor.execute("SELECT AUTHORIZATION_NAME FROM USER_METADATA WHERE AUTHORIZATION_NAME LIKE ? LIMIT 10", (f"%{query}%",))
             raw_data = data_lib.fetchall()
             lv.controls.clear()
             for i in raw_data:
@@ -80,6 +80,23 @@ class AllUsers(ft.Column):
             self.searchbar.update()
 
         lv = ft.ListView()
+        #Fetch First 10 Users
+        with sqlite3.connect(self.path_to_DB_file, timeout=10) as conn:
+            cursor = conn.cursor()
+
+            # 3. Fetch data
+            cursor.execute("SELECT AUTHORIZATION_NAME FROM USER_METADATA LIMIT 10")
+            data = cursor.fetchall()
+            cursor.close()
+        for i in data:
+            lv.controls.append(
+                ft.ListTile(
+                    title=ft.Text(i[0]),  # Force to string
+                    on_click=lambda _, name=str(i[0]).replace("'", ""): self.current_page.run_task(
+                        self._show_single_user_info, name
+                    )
+                )
+            )
         self.searchbar = ft.SearchBar(
             view_elevation=4,
             bar_text_style=ft.TextStyle(color=ft.Colors.ON_SECONDARY_CONTAINER),
