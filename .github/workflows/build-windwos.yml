@@ -30,7 +30,7 @@ jobs:
         env:
           PYTHONUTF8: "1"
           PYTHONIOENCODING: "utf-8"
-        run: python build_tool.py windows
+        run: echo "y" | python build_tool.py windows
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
