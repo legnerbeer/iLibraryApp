@@ -82,7 +82,12 @@ class AllUsers(ft.Column):
         lv = ft.ListView()
         self.searchbar = ft.SearchBar(
             view_elevation=4,
-            divider_color=ft.Colors.PRIMARY,
+            bar_text_style=ft.TextStyle(color=ft.Colors.ON_SECONDARY_CONTAINER),
+            view_header_text_style=ft.TextStyle(color=ft.Colors.ON_SECONDARY_CONTAINER),
+            view_hint_text_style=ft.TextStyle(color=ft.Colors.ON_SECONDARY_CONTAINER),
+            bar_bgcolor=ft.Colors.SECONDARY_CONTAINER,
+            view_bgcolor=ft.Colors.SECONDARY_CONTAINER,
+            divider_color=ft.Colors.ON_SECONDARY_CONTAINER,
             bar_hint_text="Search for User...",
             view_hint_text="Suggestions...",
             on_change=handle_change,

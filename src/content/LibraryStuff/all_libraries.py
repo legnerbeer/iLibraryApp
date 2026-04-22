@@ -92,14 +92,22 @@ class AllLibraries(ft.Column):
 
         # Create ListView and SearchBar
         self.lv = ft.ListView()
+        self.lv.controls.append(
+            ft.ListTile(
+                title=ft.Text('Test'),  # Force to string
+                on_click=lambda _, name=str("Test").replace("'", ""): self.current_page.run_task(
+                    self._show_single_library_info, name
+                )
+            )
+        )
         self.searchbar = ft.SearchBar(
             view_elevation=4,
-            bar_text_style=ft.TextStyle(color=ft.Colors.ON_TERTIARY_CONTAINER),
-            view_header_text_style=ft.TextStyle(color=ft.Colors.ON_TERTIARY_CONTAINER),
-            view_hint_text_style=ft.TextStyle(color=ft.Colors.ON_TERTIARY_CONTAINER),
-            bar_bgcolor = ft.Colors.TERTIARY_CONTAINER,
-            view_bgcolor=ft.Colors.TERTIARY_CONTAINER,
-            divider_color=ft.Colors.ON_TERTIARY_CONTAINER,
+            bar_text_style=ft.TextStyle(color=ft.Colors.ON_SECONDARY_CONTAINER),
+            view_header_text_style=ft.TextStyle(color=ft.Colors.ON_SECONDARY_CONTAINER),
+            view_hint_text_style=ft.TextStyle(color=ft.Colors.ON_SECONDARY_CONTAINER),
+            bar_bgcolor = ft.Colors.SECONDARY_CONTAINER,
+            view_bgcolor=ft.Colors.SECONDARY_CONTAINER,
+            divider_color=ft.Colors.ON_SECONDARY_CONTAINER,
             bar_hint_text="Search for Library...",
             view_hint_text="Suggestions...",
             on_change=self.handle_change,  # use method, not function
