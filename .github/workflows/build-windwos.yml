@@ -3,7 +3,12 @@ name: Build and Upload EXE
 on:
   push:
     branches: [ "main" ]
+    tags:
+      - 'v*'
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -17,23 +22,47 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-          cache: 'pip' # Hilft, die Installation beim nächsten Mal zu beschleunigen
+          cache: 'pip'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.41.4'
+          channel: 'stable'
 
       - name: Install Dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install pyinstaller flet # Falls dein Skript flet nutzt, hier mit installieren
+          pip install flet
           if (Test-Path requirements.txt) { pip install -r requirements.txt }
 
       - name: Build EXE
-
         env:
           PYTHONUTF8: "1"
           PYTHONIOENCODING: "utf-8"
         run: echo "y" | python build_tool.py windows
 
+
+      - name: Bundle to ZIP
+        shell: pwsh
+        run: |
+          Compress-Archive -Path build/windows/* -DestinationPath iLibrary-Windows.zip
+
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
           name: Windows-Build
-          path: build/windows/
+          path: MeinProgramm_Windows.zip
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+
+
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: MeinProgramm_Windows.zip
+          name: Release ${{ github.ref_name }}
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
