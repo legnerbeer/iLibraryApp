@@ -2,7 +2,7 @@ import os
 import json
 from datetime import datetime
 from pathlib import Path
-
+from content.HelperStuff.nav_util import TopNav
 import flet as ft
 from dotenv import load_dotenv
 
@@ -49,16 +49,7 @@ class Info(ft.Column):
         self.lib.conn.close()
 
     async def _create_app_bar(self):
-        server = await ft.SharedPreferences().get(key='server')
-        self.current_page.appbar = ft.AppBar(
-            title=ft.Text(f"Library Info: {self.library}"),
-            leading=ft.IconButton(ft.Icons.ARROW_BACK, on_click=lambda e: self.current_page.run_task(self._go_back) ),
-            actions = [
-                # Reference the instance variable here
-                ft.Text(f"Server: {server}"),
-                ft.Container(width=60),
-            ]
-        )
+        await TopNav.top_nav(page=self.current_page, title=f"Library Info: {self.library}")
         self.current_page.update()
 
     async def _go_back(self):

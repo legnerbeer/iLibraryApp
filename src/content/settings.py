@@ -6,6 +6,7 @@ import flet as ft
 from pathlib import Path
 from content.functions import load_decrypted_credentials, get_or_generate_key, try_to_build_connection, load_app_info, run_query_after_settings
 import json
+from content.HelperStuff.nav_util import TopNav
 from dotenv import load_dotenv, set_key
 from cryptography.fernet import Fernet
 
@@ -87,9 +88,7 @@ class Settings(ft.Column):
         self.current_page.update()
 
     async def _create_app_bar(self):
-        self.current_page.appbar = ft.AppBar(
-            title=ft.Text("Settings")
-        )
+        await TopNav.top_nav(self.current_page, 'Settings')
         self.current_page.update()
 
     async def _save_credentials_and_reload(self, driver, system, port, user, password):
@@ -133,7 +132,6 @@ class Settings(ft.Column):
         theme_color_value = await ft.SharedPreferences().get("theme_mode")
         if theme_color_value is None:
             theme_color_value = 'system'
-        print(theme_color_value)
         self.switch_shema_modal = ft.AlertDialog(
             modal=True,
             title=ft.Text("Switching Thema"),
