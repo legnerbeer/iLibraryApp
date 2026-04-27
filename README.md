@@ -1,81 +1,54 @@
-# Ilibraryapp app
+# iLibrary App 
+![iLibraryApp](https://legner.beer/iLibrary-morph.png)
 
-## Run the app
+Whether you are managing legacy systems or modernizing your workflow, 
+iLibrary eliminates command-line friction, helping you handle essential 
+IBM i tasks with greater speed and efficiency.
 
-### uv
+Experience a faster way to secure your data by generating Savefiles
+(SAVF) instantly and downloading them directly to your local machine. 
+iLibrary bridges the gap between the green screen and your desktop, 
+turning complex backup tasks into a simple, one-click process.
 
-Run as a desktop app:
+## Features
+* **Quick SAVF Creation:** Generate Savefiles directly from the UI without manual command entry.
+* **Direct Download:** One-click transfer of Savefiles from the IBM i to your local machine.
+* **User Lookup:** Rapid search functionality for system user profiles.
 
-```
-uv run flet run
-```
+## Download it
+Download [v0.0.4](https://github.com/legnerbeer/iLibraryApp/releases/tag/v.0.0.4)
 
-Run as a web app:
-
-```
-uv run flet run --web
-```
-
-### Poetry
-
-Install dependencies from `pyproject.toml`:
-
-```
-poetry install
-```
-
-Run as a desktop app:
-
-```
-poetry run flet run
-```
-
-Run as a web app:
-
-```
-poetry run flet run --web
-```
-
-For more details on running the app, refer to the [Getting Started Guide](https://flet.dev/docs/getting-started/).
 
 ## Build the app
 
-### Android
+## Quick Start & Build Guide
 
-```
-flet build apk -v
-```
+Follow these steps to set up your environment and build the application.
 
-For more details on building and signing `.apk` or `.aab`, refer to the [Android Packaging Guide](https://flet.dev/docs/publish/android/).
+### 1. Clone & Prepare
+Download the source files to your local machine and navigate to the project's root directory.
 
-### iOS
+### 2. Initialize Virtual Environment
+Create a clean, isolated environment to manage your dependencies:
+```bash
+python -m venv .venv
+````
+### 3. Install Dependencies
+Install all required libraries once the virtual environment is active:
 
-```
-flet build ipa -v
-```
-
-For more details on building and signing `.ipa`, refer to the [iOS Packaging Guide](https://flet.dev/docs/publish/ios/).
+```Bash
+pip install -r ./requirements.txt
+````
 
 ### macOS
-
 ```
-flet build macos -v
+python3 ./build_tool.py macos
 ```
-
-For more details on building macOS package, refer to the [macOS Packaging Guide](https://flet.dev/docs/publish/macos/).
-
 ### Linux
-
 ```
-flet build linux -v
+python3 ./build_tool.py linux
 ```
-
-For more details on building Linux package, refer to the [Linux Packaging Guide](https://flet.dev/docs/publish/linux/).
-
 ### Windows
-
 ```
-flet build windows -v
+python3 ./build_tool.py windows
 ```
-
-For more details on building Windows package, refer to the [Windows Packaging Guide](https://flet.dev/docs/publish/windows/).
