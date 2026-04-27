@@ -1,17 +1,13 @@
 import asyncio
 import logging
 import os
-import signal
 import sqlite3
-
 import flet as ft
 from pathlib import Path
 from content.functions import load_decrypted_credentials, get_or_generate_key, try_to_build_connection, load_app_info, run_query_after_settings
 import json
 from dotenv import load_dotenv, set_key
 from cryptography.fernet import Fernet
-from flet import control
-from typing_extensions import overload
 
 
 class Settings(ft.Column):
@@ -38,6 +34,7 @@ class Settings(ft.Column):
 
         # Start initialization
         self.current_page.run_task(self.async_init)
+
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.current_page.update()
 
@@ -133,6 +130,10 @@ class Settings(ft.Column):
                 )
             ]
         )
+        theme_color_value = await ft.SharedPreferences().get("theme_mode")
+        if theme_color_value is None:
+            theme_color_value = 'system'
+        print(theme_color_value)
         self.switch_shema_modal = ft.AlertDialog(
             modal=True,
             title=ft.Text("Switching Thema"),
@@ -143,7 +144,9 @@ class Settings(ft.Column):
                             ft.Row(
                                 [
                                     ft.Container(content=ft.Text("System"), padding=ft.Padding.only(left=15)),
-                                    ft.Radio(value="system"),
+                                    ft.Radio(
+                                        value="system",
+                                    ),
                                 ],
                                 alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
                             ),
@@ -170,7 +173,7 @@ class Settings(ft.Column):
                     ],
 
                 ),
-
+                value = theme_color_value,
                 on_change=self._handle_theme_mode,
             ),
             actions=[
@@ -205,10 +208,12 @@ class Settings(ft.Column):
             label="ODBC Driver",
             value="{IBM i Access ODBC Driver}",
             border_color=ft.Colors.PRIMARY,
+            width=500
         )
         system = ft.TextField(
             label="IBMi Hostname",
             border_color=ft.Colors.PRIMARY,
+            width=500
         )
 
         def check_port(e: ft.Event[ft.TextField]):
@@ -235,7 +240,7 @@ class Settings(ft.Column):
             port.border_color = ft.Colors.RED
             self.current_page.update()
 
-
+        #defining the Port Value
         port = ft.TextField(
             label="Port",
             value="22",
@@ -243,33 +248,57 @@ class Settings(ft.Column):
             on_change=check_port,  # Pass the function name only
             keyboard_type=ft.KeyboardType.NUMBER,
             border_color=ft.Colors.PRIMARY,
+            width=500
         )
+
 
         user = ft.TextField(
             label="Username",
             border_color=ft.Colors.PRIMARY,
+            capitalization = ft.TextCapitalization.CHARACTERS,
+            width=500
         )
+
+        #defining the Password Textfield
         password = ft.TextField(
             label="Password",
             password=True,
             can_reveal_password=True,
             border_color=ft.Colors.PRIMARY,
+            width = 500,
+            on_submit = lambda e: (
+                        self.current_page.run_task(
+                            self._try_connection, driver.value,  system.value, int(port.value), user.value, password.value
+
+                        )
+            )
         )
 
+        #fill the formular if the User have Logged in before
         if self.db_credentials:
             driver.value = self.db_credentials["driver"]
-            user.value = self.db_credentials["user"]
+            user.value = self.db_credentials["user"].upper()
             password.value = self.db_credentials["password"]
             system.value = self.db_credentials["system"]
             port.value = self.db_credentials["port"]
 
-        self.error_field = ft.Text("", visible=False, color=ft.Colors.RED)
+
+        #Defining the Error Container and Text
+        self.error_field = ft.Text("", visible=False, color=ft.Colors.ON_ERROR)
+        self.error_container = ft.Container(
+            visible=False,
+            align=ft.Alignment.CENTER,
+            padding=10,
+            width=500,
+            bgcolor = ft.Colors.ERROR,
+            content = self.error_field,
+            border_radius=8,
+        )
 
         self.add_server_modal = ft.AlertDialog(
             modal=True,
-
             title=ft.Text("Database credentials"),
-            content=ft.Column([driver, system, port, user, password, self.error_field]),
+            content=ft.Column([driver, system, port, user, password, self.error_container]),
             actions=[
                 ft.TextButton("Cancel", on_click=lambda e: self.current_page.pop_dialog()),
                 ft.TextButton(
@@ -296,11 +325,13 @@ class Settings(ft.Column):
             await self._save_credentials_and_reload(driver, system,port, user, password)
             await run_query_after_settings(self.current_page, self.content_manager)
             self.error_field.visible = False
+            self.error_container.visible = False
             self.error_field.update()
             self.current_page.pop_dialog()
         else:
             self.error_field.value = "Server connection failed."
             self.error_field.visible = True
+            self.error_container.visible = True
             self.error_field.weight = ft.FontWeight.BOLD
             self.error_field.alignment = ft.MainAxisAlignment.CENTER
             self.error_field.size = 15

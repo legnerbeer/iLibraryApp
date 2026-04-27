@@ -1,6 +1,5 @@
 import json
 from datetime import datetime
-from os import ftruncate
 from pathlib import Path
 import flet as ft
 from content.functions import load_decrypted_credentials, get_or_generate_key
@@ -35,7 +34,15 @@ class AllLibraries(ft.Column):
 
         self.list_container = ft.Column()
         self.input_card = self.list_container
-        self.progress_bar = ft.ProgressRing()
+        self.progress_bar = ft.Container(
+                bgcolor=ft.Colors.PRIMARY_CONTAINER,
+                border_radius=8,
+                content=ft.Row([
+                    ft.ProgressRing(color=ft.Colors.ON_PRIMARY_CONTAINER),
+                    ft.Text("Loading libraries\nplease wait ...",color=ft.Colors.ON_PRIMARY_CONTAINER)]),
+                padding=20,
+                alignment=ft.Alignment.CENTER_LEFT
+            )
         self.progress_bar_container = ft.Container(self.progress_bar, alignment=ft.Alignment.TOP_CENTER)
         self.controls.append(self.progress_bar_container)
 
@@ -88,6 +95,7 @@ class AllLibraries(ft.Column):
     # Init the Main Page
     # ------------------------------
     async def async_init(self):
+        #self._show_empty_state("Loading libraries\nplease wait...")
         await self._create_app_bar()
 
         # Create ListView and SearchBar
@@ -211,8 +219,7 @@ class AllLibraries(ft.Column):
                     return
 
                 # 4. Build UI Controls
-                for item in data:
-
+                for i, item in enumerate(data):
                     lib_name, timestamp_str, description_lib = item
 
                     try:
@@ -277,7 +284,6 @@ class AllLibraries(ft.Column):
                         border_radius=8,
                     )
                     self.list_container.controls.append(new_library_tile)
-
         except sqlite3.OperationalError as e:
             logger.error(f"Database error: {e}")
             self._show_empty_state("Database is currently busy. Retrying...")

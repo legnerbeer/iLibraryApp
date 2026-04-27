@@ -34,7 +34,15 @@ class AllUsers(ft.Column):
 
         self.list_container = ft.Column()
         self.input_card = self.list_container
-        self.progress_bar = ft.ProgressRing()
+        self.progress_bar = ft.Container(
+                bgcolor=ft.Colors.PRIMARY_CONTAINER,
+                border_radius=8,
+                content=ft.Row([
+                    ft.ProgressRing(color=ft.Colors.ON_PRIMARY_CONTAINER),
+                    ft.Text("Loading users\nplease wait ...",color=ft.Colors.ON_PRIMARY_CONTAINER)]),
+                padding=20,
+                alignment=ft.Alignment.CENTER_LEFT
+            )
         self.progress_bar_container = ft.Container(self.progress_bar, alignment=ft.Alignment.TOP_CENTER)
         self.controls.append(self.progress_bar_container)
 

@@ -1,3 +1,4 @@
+import asyncio
 import os
 import types
 from pathlib import Path
@@ -10,6 +11,7 @@ from content.LibraryStuff.all_libraries import AllLibraries
 from content.UserStuff.all_users import AllUsers
 from content.settings import Settings
 import logging
+
 # --- Helper: Unified Navigation Content Manager ---
 async def clear_and_add_control(page_content: ft.Container, control):
     """Replaces the content of the main container and updates the UI."""
@@ -42,10 +44,7 @@ def setup_logger():
 # --- Main Application Entry Point ---
 async def main(page: ft.Page):
     setup_logger()
-    #Initialize Worker
-    worker = SyncWorker(page=page)
 
-    page.run_task(worker.main_loop)
 
     #Shutdown
     def handle_cleanup(e):
@@ -181,6 +180,13 @@ async def main(page: ft.Page):
 
     await navigation_bar_changed(types.SimpleNamespace(control=rail))
 
+
+    page.update()
+
+    await asyncio.sleep(0.1)
+    worker = SyncWorker(page=page)
+
+    page.run_task(worker.main_loop)
 
 if __name__ == "__main__":
     ft.run(main)
