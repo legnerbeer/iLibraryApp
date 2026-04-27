@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 import flet as ft
 from dotenv import load_dotenv, set_key
+from content.HelperStuff.nav_util import TopNav
 from cryptography.fernet import Fernet
 from content.functions import load_decrypted_credentials, get_or_generate_key
 from iLibrary import User
@@ -160,14 +161,7 @@ class AllUsers(ft.Column):
         """
             Creating the App Bar
         """
-        self.current_page.appbar = ft.AppBar(
-            title=ft.Text("All Users"),
-            actions=[
-                # Reference the instance variable here
-                ft.Text(f"Server: {await ft.SharedPreferences().get('server')}"),
-                ft.Container(width=60),
-            ]
-        )
+        await TopNav.top_nav(self.current_page, title="All Users")
         self.current_page.update()
 
     async def _rebuild_users(self):

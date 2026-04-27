@@ -5,8 +5,10 @@ import flet as ft
 from content.functions import load_decrypted_credentials, get_or_generate_key
 from iLibrary import Library
 import logging
-
+from content.HelperStuff.nav_util import TopNav
 import sqlite3
+
+
 logger = logging.getLogger(__name__)
 class AllLibraries(ft.Column):
     def __init__(self, page: ft.Page, content_manager):
@@ -173,19 +175,7 @@ class AllLibraries(ft.Column):
         """
             Creating the App Bar
         """
-        self.current_page.appbar = ft.AppBar(
-            title=ft.Column(
-                controls=[
-                    ft.Text("All Libraries"),
-
-                ],
-            alignment=ft.MainAxisAlignment.SPACE_AROUND),
-            actions=[
-                # Reference the instance variable here
-                ft.Text(f"Server: {await ft.SharedPreferences().get('server')}"),
-                ft.Container(width=60),
-            ]
-        )
+        await TopNav.top_nav(self.current_page, title="All Libraries")
         self.current_page.update()
 
     async def _rebuild_libraries(self):
