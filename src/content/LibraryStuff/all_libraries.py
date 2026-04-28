@@ -171,8 +171,8 @@ class AllLibraries(ft.Column):
         if  self.path_to_DB_file.exists():
             self.input_card.visible = True
             self.list_container.visible = True
-
-            self.searchbar_container.controls.extend([self.searchbar, sorting_button])
+            self.searchbar_container.controls.extend([self.searchbar])
+            # self.searchbar_container.controls.extend([self.searchbar, sorting_button])
             self.controls.append(self.searchbar_container)
             if self.input_card not in self.controls:
                 self.controls.extend([self.input_card])
