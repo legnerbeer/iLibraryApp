@@ -31,6 +31,13 @@ class AllLibraries(ft.Column):
         self.DB_SYSTEM = None
         self.DB_PORT = None
 
+        #search bar
+        self.searchbar_container = ft.Row(
+            margin = ft.Margin.only(left=40, right=40),
+            alignment=ft.MainAxisAlignment.CENTER,
+        )
+
+
         self.path_to_DB = Path(__file__).parent.parent / ".auth"
         self.path_to_DB_file = self.path_to_DB / "libraries_metadata.db"
 
@@ -138,6 +145,17 @@ class AllLibraries(ft.Column):
             on_tap=self.open_searchbar,  # open searchbar when tapped
             controls=[self.lv],  # ListView inside the SearchBar
             visible=False,
+            expand=True
+        )
+        date_sorting = ft.PopupMenuItem(content="Date", icon = ft.Icons.ARROW_DOWNWARD_ROUNDED)
+        name_sorting = ft.PopupMenuItem(content="Name", icon = ft.Icons.ARROW_DOWNWARD_ROUNDED)
+        sorting_button = ft.PopupMenuButton(
+            items=[
+                date_sorting,
+                name_sorting,
+            ],
+            icon=ft.Icons.SORT,
+            menu_position=ft.PopupMenuPosition.OVER,
         )
 
         # Download path and SharedPreferences logic
@@ -154,7 +172,8 @@ class AllLibraries(ft.Column):
             self.input_card.visible = True
             self.list_container.visible = True
 
-            self.controls.append(self.searchbar)
+            self.searchbar_container.controls.extend([self.searchbar, sorting_button])
+            self.controls.append(self.searchbar_container)
             if self.input_card not in self.controls:
                 self.controls.extend([self.input_card])
 
@@ -187,22 +206,21 @@ class AllLibraries(ft.Column):
         self.list_container.controls.clear()
 
         try:
-            # Use a timeout so we wait if the SyncWorker is currently writing
 
             with sqlite3.connect(self.path_to_DB_file, timeout=10) as conn:
                 cursor = conn.cursor()
 
-                # 2. Defensive Check: Does the table exist?
+                sql_query = f"SELECT name FROM sqlite_master WHERE type='table' AND name='LIBRARY_METADATA'"
                 cursor.execute(
-                    "SELECT name FROM sqlite_master WHERE type='table' AND name='LIBRARY_METADATA'"
+                    sql_query
                 )
                 if not cursor.fetchone():
                     logger.warning("LIBRARY_METADATA table not found. Waiting for sync...")
                     await self._show_syncing_state()
                     return
-
-                # 3. Fetch data
-                cursor.execute("SELECT OBJNAME, OBJCREATED, DESCRIPTION FROM LIBRARY_METADATA")
+                SORTING = 'OBJNAME ASC'
+                sql_query = f"SELECT OBJNAME, OBJCREATED, DESCRIPTION FROM LIBRARY_METADATA ORDER BY {SORTING}"
+                cursor.execute(sql_query)
                 data = cursor.fetchall()
                 if not data:
                     self._show_empty_state("No libraries found.\nWaiting for sync...")

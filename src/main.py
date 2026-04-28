@@ -55,7 +55,13 @@ async def main(page: ft.Page):
         worker.running = False
 
         # Attach the cleanup function to the window close event
+    page.window.height = 810
+    page.window.width = 1440
+    page.window.left = 0
+    page.window.top = 0
 
+
+    page.window.update()
     page.on_close = handle_cleanup
     page.title = "iLibrary App"
 
