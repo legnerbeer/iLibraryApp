@@ -1,0 +1,21 @@
+@import "{{ site.theme }}";
+
+// Hier änderst du den Hintergrund des Headers
+.page-header {
+  color: #fff;
+  /* Beispiel: Ein eleganter dunkler Verlauf */
+  background-color: #009688;
+  background-image: linear-gradient(120deg, #009688, #e43fd1);
+}
+
+// Hier änderst du die Buttons im Header
+.btn {
+  color: rgba(255, 255, 255, 0.7);
+  border-color: rgba(255, 255, 255, 0.2);
+
+  &:hover {
+    color: #fff;
+    background-color: rgba(255, 255, 255, 0.2);
+    border-color: rgba(255, 255, 255, 0.3);
+  }
+}
