@@ -9,7 +9,7 @@ from cryptography.fernet import Fernet
 import flet as ft
 from iLibrary import Library, User
 
-from content.db_manager import db_mgr
+from content.HelperStuff.db_manager import db_mgr
 import logging
 
 def load_decrypted_credentials(key: str, env_file_path: Path) -> dict | None:
