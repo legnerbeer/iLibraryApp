@@ -12,14 +12,16 @@
             }
         ],
         "dependencies": [
-            "flet==0.84.0",
+            "python-dateutil",
+            "flet==0.85.0",
             "python-dotenv==1.2.2",
             "iLibrary==0.0.16",
             "paramiko",
             "pyodbc==5.3.0",
             "certifi",
             "typing_extensions==4.15.0",
-            "binaryornot==0.4.4"
+            "binaryornot==0.4.4",
+            "flet-charts==0.85.0"
         ]
     },
     "tool": {
@@ -39,14 +41,16 @@
         },
         "uv": {
             "dev-dependencies": [
-                "flet==0.84.0",
+                "python-dateutil",
+                "flet==0.85.0",
                 "python-dotenv==1.2.2",
                 "iLibrary==0.0.16",
                 "paramiko",
                 "pyodbc==5.3.0",
                 "certifi",
                 "typing_extensions==4.15.0",
-                "binaryornot==0.4.4"
+                "binaryornot==0.4.4",
+                "flet-charts==0.85.0"
             ]
         },
         "poetry": {
@@ -58,7 +62,7 @@
                             "extras": [
                                 "all"
                             ],
-                            "version": "0.82.0"
+                            "version": "0.85.0"
                         }
                     }
                 }

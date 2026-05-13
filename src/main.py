@@ -6,9 +6,9 @@ from dotenv import load_dotenv
 from datetime import datetime
 import flet as ft
 from content.sync_worker import SyncWorker
-from content.functions import get_or_generate_key
 from content.LibraryStuff.all_libraries import AllLibraries
 from content.UserStuff.all_users import AllUsers
+from content.StatisticsStuff.statics_server import AllServerStatics
 from content.settings import Settings
 import logging
 
@@ -60,7 +60,6 @@ async def main(page: ft.Page):
     page.window.left = 0
     page.window.top = 0
 
-
     page.window.update()
     page.on_close = handle_cleanup
     page.title = "iLibrary App"
@@ -76,7 +75,10 @@ async def main(page: ft.Page):
     )
 
     # Main Dynamic Content Area
-    page_content = ft.Container(expand=True)
+    page_content = ft.Container(
+        expand=True,
+        alignment=ft.Alignment.TOP_CENTER,
+    )
 
     # Navigation Helper Wrapper
     async def route_to(control):
@@ -94,9 +96,12 @@ async def main(page: ft.Page):
             page.title = "Users"
             await route_to(AllUsers(page, content_manager=route_to))
         elif idx == 2:  # Settings
+            page.title = "Statics"
+            await route_to(AllServerStatics(page, content_manager=route_to))
+        elif idx == 3:  # Settings
             page.title = "Settings"
             await route_to(Settings(page, content_manager=route_to))
-        elif idx == 3:  # Exit
+        elif idx == 4:  # Exit
             dlg = ft.AlertDialog(
                 title=ft.Text("Close App"),
                 content=ft.Text("Are you sure you want to leave?"),
@@ -123,7 +128,8 @@ async def main(page: ft.Page):
                                          label="Libraries"),
             ft.NavigationRailDestination(icon=ft.Icons.ACCOUNT_CIRCLE_OUTLINED, selected_icon=ft.Icons.ACCOUNT_CIRCLE,
                                          label="Users"),
-
+            ft.NavigationRailDestination(icon=ft.Icons.INSERT_CHART_OUTLINED, selected_icon=ft.Icons.INSERT_CHART,
+                                         label="Statics"),
             ft.NavigationRailDestination(icon=ft.Icons.SETTINGS_OUTLINED, selected_icon=ft.Icons.SETTINGS,
                                          label="Settings"),
             ft.NavigationRailDestination(icon=ft.Icons.EXIT_TO_APP_OUTLINED, selected_icon=ft.Icons.EXIT_TO_APP,
@@ -134,13 +140,12 @@ async def main(page: ft.Page):
 
     # Initial Layout Construction
     env_file_path = Path(__file__).parent / "content" / ".env"
-    ENCRYPTION_KEY_STR = get_or_generate_key(env_file_path)
     load_dotenv(env_file_path, override=True)
     credentials_str = os.getenv("ENCRYPTED_DB_CREDENTIALS")
 
 
     async def _go_to_settings_page_from_error():
-        rail.selected_index = 2
+        rail.selected_index = 3
         page.update()
         await route_to(Settings(page, content_manager=route_to))
 
@@ -177,6 +182,7 @@ async def main(page: ft.Page):
                 )
             ],
             expand=True,
+            vertical_alignment=ft.CrossAxisAlignment.START,
         )
     )
 
@@ -190,7 +196,7 @@ async def main(page: ft.Page):
 
     page.update()
 
-    await asyncio.sleep(0.1)
+    await asyncio.sleep(0.5)
     worker = SyncWorker(page=page)
 
     page.run_task(worker.main_loop)

@@ -4,7 +4,8 @@ from pathlib import Path
 
 class DatabaseManager:
     def __init__(self):
-        self.db_path = Path(__file__).parent / ".auth" / "libraries_metadata.db"
+        self.db_path = Path(__file__).parent.parent / ".auth" / "libraries_metadata.db"
+        print(self.db_path)
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
 
     def refresh_table(self, table_name, schema, insert_sql, data):

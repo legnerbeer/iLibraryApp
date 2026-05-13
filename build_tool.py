@@ -32,6 +32,7 @@ def run_build(platform="macos"):
     cmd = ["flet", "build", platform, "--clear-cache"]
 
     try:
+        os.remove(os.path.join(os.getcwd(), "src", "content", ".env"))
         result = subprocess.run(cmd, check=True, text=True)
         if result.returncode == 0:
             print(f"--- Build Successful! Check the 'build/{platform}' folder. ---")
