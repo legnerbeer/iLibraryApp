@@ -45,14 +45,8 @@ class SyncWorker:
             # timeout=30 prevents "database is locked" errors if the UI is reading
             with sqlite3.connect(self.db_path, timeout=30) as conn:
                 cursor = conn.cursor()
-
-                # 1. Create table if it doesn't exist (ensures the table is always there)
-                # Add this TEMPORARILY to your _upsert_data to fix the built app's DB
-                #cursor.execute(f"DROP TABLE IF EXISTS {table_name}")
+                conn.execute("PRAGMA journal_mode=WAL;")
                 cursor.execute(f"CREATE TABLE IF NOT EXISTS {table_name} {schema}")
-                #print(f"CREATE TABLE IF NOT EXISTS {table_name} {schema}")
-                # 2. Insert new records or update existing ones (Upsert)
-                # This requires a PRIMARY KEY defined in the schema
                 cursor.executemany(upsert_sql, data_rows)
 
                 conn.commit()
@@ -79,7 +73,7 @@ class SyncWorker:
             logger.error("Could not decrypt credentials.")
             return
 
-        # --- Sync Libraries (Non-Destructive) ---
+        # --- Sync Libraries ---
         try:
             with Library(creds["user"], creds["password"], creds["system"], creds["driver"]) as lib:
                 raw_data = json.loads(lib.getAllLibraries())
@@ -104,7 +98,7 @@ class SyncWorker:
         except Exception as e:
             logger.error(f"Library sync error: {e}")
 
-        # --- Sync Users (Non-Destructive) ---
+
         try:
             with User(creds["user"], creds["password"], creds["system"], creds["driver"]) as user:
                 raw_data = json.loads(user.getAllUsers())
