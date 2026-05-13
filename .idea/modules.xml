@@ -2,7 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/.idea/iLibraryApp.iml" filepath="$PROJECT_DIR$/.idea/iLibraryApp.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/iLibrary.iml" filepath="$PROJECT_DIR$/.idea/iLibrary.iml" />
     </modules>
   </component>
 </project>

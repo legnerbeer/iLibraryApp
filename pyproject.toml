@@ -8,14 +8,16 @@ authors = [
     { name = "Andreas Legner", email = "ilibrary@legner.beer" }
 ]
 dependencies = [
-    "flet==0.84.0",
+    "python-dateutil",
+    "flet==0.85.0",
     "python-dotenv==1.2.2",
     "iLibrary==0.0.16",
     "paramiko",
     "pyodbc==5.3.0",
     "certifi",
     "typing_extensions==4.15.0",
-    "binaryornot==0.4.4"
+    "binaryornot==0.4.4",
+    "flet-charts==0.85.0"
 
 ]
 
@@ -39,7 +41,8 @@ copyright = "Copyright (C) 2025-2026 by legner.beer"
 path = "src"
 [tool.uv]
 dev-dependencies = [
-    "flet==0.84.0",
+    "python-dateutil",
+    "flet==0.85.0",
     "python-dotenv==1.2.2",
     "iLibrary==0.0.16",
     "paramiko",
@@ -47,6 +50,7 @@ dev-dependencies = [
     "certifi",
     "typing_extensions==4.15.0",
     "binaryornot==0.4.4",
+    "flet-charts==0.85.0"
 
 ]
 
@@ -54,7 +58,7 @@ dev-dependencies = [
 package-mode = false
 
 [tool.poetry.group.dev.dependencies]
-flet = {extras = ["all"], version = "0.82.0"}
+flet = {extras = ["all"], version = "0.85.0"}
 
 [tool.flet.macos]
 entitlements = { "com.apple.security.network.client" = true }

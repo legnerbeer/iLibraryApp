@@ -18,6 +18,7 @@ class AllLibraries(ft.Column):
             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
 
         )
+        self.SORTING = "OBJNAME ASC"
         self.current_page = page
         self.content_manager = content_manager
         self.env_file_path = Path(__file__).parent.parent / ".env"
@@ -50,9 +51,9 @@ class AllLibraries(ft.Column):
                     ft.ProgressRing(color=ft.Colors.ON_PRIMARY_CONTAINER),
                     ft.Text("Loading libraries\nplease wait ...",color=ft.Colors.ON_PRIMARY_CONTAINER)]),
                 padding=20,
-                alignment=ft.Alignment.CENTER_LEFT
+                alignment=ft.Alignment.CENTER
             )
-        self.progress_bar_container = ft.Container(self.progress_bar, alignment=ft.Alignment.TOP_CENTER)
+        self.progress_bar_container = ft.Container(self.progress_bar, alignment=ft.Alignment.CENTER)
         self.controls.append(self.progress_bar_container)
 
         # Start initialization
@@ -75,17 +76,16 @@ class AllLibraries(ft.Column):
     # Handle Search changes
     # ----------------------------
     def handle_change(self, e):
-        # 3. Get the search query
+
         query = e.data.upper().strip()
 
-        # 4. Filter: Ensure 'library' is treated as a string
         # We check if 'query' is inside the 'library' name
         DBConnect = sqlite3.connect(self.path_to_DB_file)
         cursor = DBConnect.cursor()
         data_lib = cursor.execute("SELECT OBJNAME FROM LIBRARY_METADATA WHERE OBJNAME LIKE ? LIMIT 50", (f"%{query}%",))
         raw_data = data_lib.fetchall()
 
-        # 5. Clear and Repopulate
+        # Clear and Repopulate
         self.lv.controls.clear()
 
         for library_name in raw_data:
@@ -97,8 +97,7 @@ class AllLibraries(ft.Column):
                     )
                 )
             )
-
-        # update the UI
+    # update the UI
 
     # ------------------------------
     # Init the Main Page
@@ -129,8 +128,8 @@ class AllLibraries(ft.Column):
                         )
                     )
                 )
-        except:
-            pass
+        except sqlite3.Error as e:
+            print(e)
         self.searchbar = ft.SearchBar(
             view_elevation=4,
             bar_text_style=ft.TextStyle(color=ft.Colors.ON_SECONDARY_CONTAINER),
@@ -147,8 +146,61 @@ class AllLibraries(ft.Column):
             visible=False,
             expand=True
         )
-        date_sorting = ft.PopupMenuItem(content="Date", icon = ft.Icons.ARROW_DOWNWARD_ROUNDED)
-        name_sorting = ft.PopupMenuItem(content="Name", icon = ft.Icons.ARROW_DOWNWARD_ROUNDED)
+
+
+        #---SEARCH BAR BUTTONS--------
+        def change_icon_data_sort():
+            date = date_sorting.content if not None else ''
+
+            if date is "Date by ASC":
+                date_sorting.content = "Date by DESC"
+                date_sorting.update()
+                self.SORTING = "OBJCREATED ASC"
+
+            if date is "Date by DESC":
+                date_sorting.content = "Date by ASC"
+                date_sorting.update()
+                self.SORTING = "OBJCREATED DESC"
+
+            self.input_card.visible = False
+            self.list_container.visible = False
+            self.progress_bar_container.visible = True
+            self.searchbar_container.visible = False
+            self.update()
+            self.current_page.run_task(self._rebuild_libraries)
+            return
+
+        def change_icon_name_sort():
+            name = name_sorting.content if not None else ''
+            if name is "Name by ASC":
+                name_sorting.content = "Name by DESC"
+                name_sorting.update()
+                self.SORTING = "OBJNAME ASC"
+
+            if name is "Name by DESC":
+                name_sorting.content = "Name by ASC"
+                name_sorting.update()
+                self.SORTING = "OBJNAME DESC"
+
+
+            self.input_card.visible = False
+            self.list_container.visible = False
+            self.progress_bar_container.visible = True
+            self.searchbar_container.visible = False
+            self.update()
+            self.current_page.run_task(self._rebuild_libraries)
+            return
+
+        date_sorting = ft.PopupMenuItem(
+            icon = ft.Icons.SORT_BY_ALPHA,
+            content = "Date by ASC",
+            on_click = change_icon_data_sort
+        )
+        name_sorting = ft.PopupMenuItem(
+            icon=ft.Icons.SORT_BY_ALPHA,
+            content="Name by DESC",
+            on_click=change_icon_name_sort
+        )
         sorting_button = ft.PopupMenuButton(
             items=[
                 date_sorting,
@@ -171,8 +223,7 @@ class AllLibraries(ft.Column):
         if  self.path_to_DB_file.exists():
             self.input_card.visible = True
             self.list_container.visible = True
-            self.searchbar_container.controls.extend([self.searchbar])
-            # self.searchbar_container.controls.extend([self.searchbar, sorting_button])
+            self.searchbar_container.controls.extend([self.searchbar, sorting_button])
             self.controls.append(self.searchbar_container)
             if self.input_card not in self.controls:
                 self.controls.extend([self.input_card])
@@ -218,8 +269,8 @@ class AllLibraries(ft.Column):
                     logger.warning("LIBRARY_METADATA table not found. Waiting for sync...")
                     await self._show_syncing_state()
                     return
-                SORTING = 'OBJNAME ASC'
-                sql_query = f"SELECT OBJNAME, OBJCREATED, DESCRIPTION FROM LIBRARY_METADATA ORDER BY {SORTING}"
+
+                sql_query = f"SELECT OBJNAME, OBJCREATED, DESCRIPTION FROM LIBRARY_METADATA ORDER BY {self.SORTING}"
                 cursor.execute(sql_query)
                 data = cursor.fetchall()
                 if not data:
@@ -301,6 +352,7 @@ class AllLibraries(ft.Column):
         self.input_card.visible = True
         self.list_container.visible = True
         self.progress_bar_container.visible = False
+        self.searchbar_container.visible = True
         self.searchbar.visible = True
         self.update()
 

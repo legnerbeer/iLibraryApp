@@ -1,3 +1,4 @@
+import asyncio
 import sqlite3
 from datetime import datetime
 import os
@@ -18,6 +19,7 @@ class AllUsers(ft.Column):
             horizontal_alignment=ft.CrossAxisAlignment.CENTER
 
         )
+        self.SORTING = "AUTHORIZATION_NAME ASC"
         self.current_page = page
         self.content_manager = content_manager
         self.env_file_path = Path(__file__).parent.parent / ".env"
@@ -29,6 +31,11 @@ class AllUsers(ft.Column):
         self.DB_USER = None
         self.DB_PASSWORD = None
         self.DB_SYSTEM = None
+        # search bar
+        self.searchbar_container = ft.Row(
+            margin=ft.Margin.only(left=40, right=40),
+            alignment=ft.MainAxisAlignment.CENTER,
+        )
 
         self.path_to_DB = Path(__file__).parent.parent / ".auth"
         self.path_to_DB_file = self.path_to_DB / "libraries_metadata.db"
@@ -120,6 +127,7 @@ class AllUsers(ft.Column):
             on_tap=open_searchbar,
             controls=[lv],
             visible=False,
+            expand = True,
         )
 
         if not await ft.SharedPreferences().contains_key('download_path'):
@@ -145,10 +153,76 @@ class AllUsers(ft.Column):
                 self.input_card.visible = True
                 self.list_container.visible = True
 
-                self.controls.append(self.searchbar)
+                def change_icon_name_sort():
+                    name = name_sorting.content if not None else ''
+                    if name is "Name by ASC":
+                        name_sorting.content = "Name by DESC"
+                        name_sorting.update()
+                        self.SORTING = "AUTHORIZATION_NAME ASC"
+
+                    if name is "Name by DESC":
+                        name_sorting.content = "Name by ASC"
+                        name_sorting.update()
+                        self.SORTING = "AUTHORIZATION_NAME DESC"
+
+                    self.input_card.visible = False
+                    self.list_container.visible = False
+                    self.progress_bar_container.visible = True
+                    self.searchbar_container.visible = False
+                    self.update()
+                    self.current_page.run_task(self._rebuild_users)
+                    return
+                def change_icon_date_sort():
+                    name = date_sorting.content if not None else ''
+                    if name is "Date by ASC":
+                        date_sorting.content = "Date by DESC"
+                        date_sorting.update()
+                        self.SORTING = "CREATION_TIMESTAMP ASC"
+
+                    if name is "Date by DESC":
+                        date_sorting.content = "Date by ASC"
+                        date_sorting.update()
+                        self.SORTING = "CREATION_TIMESTAMP DESC"
+
+                    self.input_card.visible = False
+                    self.list_container.visible = False
+                    self.progress_bar_container.visible = True
+                    self.searchbar_container.visible = False
+                    self.update()
+                    self.current_page.run_task(self._rebuild_users)
+                    return
+
+                date_sorting = ft.PopupMenuItem(
+                    icon=ft.Icons.SORT_BY_ALPHA,
+                    content="Date by ASC",
+                    on_click=change_icon_date_sort
+                )
+                name_sorting = ft.PopupMenuItem(
+                    icon=ft.Icons.SORT_BY_ALPHA,
+                    content="Name by ASC",
+                    on_click=change_icon_name_sort
+                )
+                sorting_button = ft.PopupMenuButton(
+                    items=[
+                        date_sorting,
+                        name_sorting,
+                    ],
+                    icon=ft.Icons.SORT,
+                    menu_position=ft.PopupMenuPosition.OVER,
+                )
+
+                self.searchbar_container.controls.extend([self.searchbar, sorting_button])
+                self.controls.append(self.searchbar_container)
+
+
                 if self.input_card not in self.controls:
                     self.controls.extend([self.input_card])
                 await self._rebuild_users()
+
+
+
+
+
             else:
              pass
         else:
@@ -183,7 +257,7 @@ class AllUsers(ft.Column):
                 # 2. Defensive Check: Does the table exist?
                 # This prevents crashing if the sync worker hasn't run yet.
                 cursor.execute(
-                    "SELECT name FROM sqlite_master WHERE type='table' AND name='USER_METADATA'"
+                    f"SELECT name FROM sqlite_master WHERE type='table' AND name='USER_METADATA'"
                 )
                 if not cursor.fetchone():
                     print("USER_METADATA table not found yet. Showing syncing state.")
@@ -191,7 +265,9 @@ class AllUsers(ft.Column):
                     return
 
                 # 3. Fetch data
-                cursor.execute("SELECT AUTHORIZATION_NAME, CREATION_TIMESTAMP, TEXT_DESCRIPTION FROM USER_METADATA")
+                sql_query = f"SELECT AUTHORIZATION_NAME, CREATION_TIMESTAMP, TEXT_DESCRIPTION FROM USER_METADATA ORDER BY {self.SORTING}"
+                cursor.execute(sql_query)
+                print(sql_query)
                 data = cursor.fetchall()
 
                 if not data:
@@ -254,6 +330,7 @@ class AllUsers(ft.Column):
         self.list_container.visible = True
         self.progress_bar_container.visible = False
         self.searchbar.visible = True
+        self.searchbar_container.visible = True
         self.update()
 
     def _show_loading_status(self, message):
